@@ -781,6 +781,9 @@
         <span>Total Previsão:</span>
         <span id="modal-total-value">R$ 0,00</span>
       </div>
+      <div style="margin-top:12px;text-align:right;">
+        <button class="modal-btn-add" style="background:var(--dark);" onclick="exportPrevisaoPDF()">🖨 Exportar Previsão em PDF</button>
+      </div>
     </div>
   </div>
 </div>
@@ -789,16 +792,16 @@
 
 <script>
 // ── DADOS MENSAIS BASE ──────────────────────────────────────────
-const BASE = [
-  {name:"ATIVA REPRESENTAÇÕES", meta:1050866.29, real:177167.43, prev:0, car:0},
-  {name:"RBR REPRESENTAÇÕES",    meta:783687.55,  real:140802.45, prev:0, car:0},
-  {name:"IG REPRESENTAÇÕES",     meta:1228971.87, real:142165.59, prev:0, car:0},
-  {name:"EMPROL AM",                meta:1208209.44, real:116391.55, prev:0, car:0},
-  {name:"EMPROL (AP e PA)",           meta:407012.26,  real:68179.59,  prev:0, car:0},
+let BASE = [
+  {name:"ATIVA REPRESENTAÇÕES", meta:1342600, real:162153, prev:1621386, car:9233},
+  {name:"RBR REPRESENTAÇÕES",    meta:650000,  real:317236, prev:410527, car:43291},
+  {name:"IG REPRESENTAÇÕES",     meta:1697344, real:381065, prev:1838933, car:14868},
+  {name:"EMPROL AM",             meta:573269,  real:522491, prev:939805, car:107314},
+  {name:"EMPROL (AP e PA)",      meta:529166,  real:207084, prev:330125, car:23041},
 ];
 
 // Cópia imutável dos valores originais de BASE (para restaurar quando muda de mês)
-const BASE_DEFAULT = JSON.parse(JSON.stringify(BASE));
+let BASE_DEFAULT = JSON.parse(JSON.stringify(BASE));
 
 // ── ARMAZENAMENTO DE CLIENTES POR REPRESENTANTE ──────────────────
 // Structure: CLIENTS[repIndex] = [{name: "Cliente 1", value: 1000}, ...]
@@ -846,11 +849,11 @@ const TRIMESTRES = {
     editMonths: 'Jul · Ago · Set',
     keys: ['m1', 'm2', 'm3'],
     data: [
-      {name:"ATIVA REPRESENTAÇÕES", metaTrim:4247246.51, m1:0, m2:0, m3:0},
-      {name:"RBR REPRESENTAÇÕES",    metaTrim:2777594.86, m1:0, m2:0, m3:0},
-      {name:"IG REPRESENTAÇÕES",     metaTrim:4412563.87, m1:0, m2:0, m3:0},
-      {name:"EMPROL AM",                metaTrim:3786418.07, m1:0, m2:0, m3:0},
-      {name:"EMPROL (AP e PA)",           metaTrim:1445756.12, m1:0, m2:0, m3:0},
+      {name:"ATIVA REPRESENTAÇÕES", metaTrim:4247246.51, m1:0, m2:1342600, m3:0},
+      {name:"RBR REPRESENTAÇÕES",    metaTrim:2777594.86, m1:0, m2:650000, m3:0},
+      {name:"IG REPRESENTAÇÕES",     metaTrim:4412563.87, m1:0, m2:1697344, m3:0},
+      {name:"EMPROL AM",                metaTrim:3786418.07, m1:0, m2:573269, m3:0},
+      {name:"EMPROL (AP e PA)",           metaTrim:1445756.12, m1:0, m2:529166, m3:0},
     ]
   },
   4: { // 4º Tri (Out, Nov, Dez)
@@ -1118,6 +1121,103 @@ function renderClientsList(){
       spanTotal.textContent = R(somaTotal);
     }
   }
+}
+
+// ── EXPORTAR PREVISÃO EM PDF ─────────────────────────────────────
+// Cliente MARCADO  = confirmado / já passou
+// Cliente DESMARCADO = ainda no aguardo
+function exportPrevisaoPDF(){
+  if(currentModalRepIndex < 0){
+    alert('Abra a previsão de um representante antes de exportar.');
+    return;
+  }
+  const rep = BASE[currentModalRepIndex];
+  const clients = CLIENTS[currentModalRepIndex] || [];
+
+  if(clients.length === 0){
+    alert('Não há clientes cadastrados nesta previsão.');
+    return;
+  }
+
+  const confirmados = [];
+  const aguardando  = [];
+  let totConf = 0, totAgu = 0;
+
+  clients.forEach(c => {
+    const v = toNumber(c.value);
+    if(c.selected){ confirmados.push({n:c.name, v:v}); totConf += v; }
+    else          { aguardando.push({n:c.name, v:v});  totAgu  += v; }
+  });
+
+  const totGeral = totConf + totAgu;
+  const pct = totGeral ? (totConf/totGeral*100) : 0;
+
+  const linhas = arr => arr.length
+    ? arr.map(c => `<tr><td>${c.n}</td><td class="v">${fmtN(c.v)}</td></tr>`).join('')
+    : '<tr><td colspan="2" class="vazio">Nenhum cliente nesta situação.</td></tr>';
+
+  const mesTexto = (document.getElementById('month-selector')||{}).selectedOptions
+    ? document.getElementById('month-selector').selectedOptions[0].text : '';
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Previsão — ${rep.name}</title>
+<style>
+  @page{size:A4 portrait;margin:14mm}
+  *{box-sizing:border-box}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1C1C1C;margin:0}
+  .cab{background:#FE5000;color:#fff;padding:16px 20px;border-radius:8px}
+  .cab h1{margin:0;font-size:18px;letter-spacing:1px}
+  .cab p{margin:4px 0 0;font-size:11px;opacity:.9}
+  .rep{margin:18px 0 6px;font-size:15px;font-weight:900}
+  .sub{font-size:10px;color:#777;margin-bottom:14px}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:1px;margin:20px 0 6px;
+     padding:7px 10px;border-radius:5px;color:#fff}
+  h2.ok{background:#1E7E34}
+  h2.ag{background:#B8860B}
+  table{width:100%;border-collapse:collapse;margin-bottom:6px}
+  td{padding:6px 10px;font-size:11px;border-bottom:1px solid #eee}
+  td.v{text-align:right;font-weight:700;white-space:nowrap}
+  td.vazio{color:#999;font-style:italic;text-align:center}
+  .sub-tot{display:flex;justify-content:space-between;padding:7px 10px;
+     background:#f4f4f4;border-radius:5px;font-size:11px;font-weight:800}
+  .geral{margin-top:24px;background:#1C1C1C;color:#fff;border-radius:8px;
+     padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+  .geral span:last-child{font-size:20px;font-weight:900;color:#FE5000}
+  .rod{margin-top:16px;font-size:9px;color:#999;text-align:center}
+</style></head><body>
+  <div class="cab">
+    <h1>🔥 RIOSULENSE — Previsão Detalhada</h1>
+    <p>NORTE • NORDESTE • RIO</p>
+  </div>
+
+  <div class="rep">${rep.name}</div>
+  <div class="sub">${mesTexto} &nbsp;·&nbsp; Emitido em ${new Date().toLocaleString('pt-BR')} &nbsp;·&nbsp; ${clients.length} cliente(s)</div>
+
+  <h2 class="ok">✓ Confirmados / já passaram &nbsp;—&nbsp; ${confirmados.length} cliente(s)</h2>
+  <table>${linhas(confirmados)}</table>
+  <div class="sub-tot"><span>Subtotal confirmado</span><span>${R(totConf)}</span></div>
+
+  <h2 class="ag">⏳ Ainda no aguardo &nbsp;—&nbsp; ${aguardando.length} cliente(s)</h2>
+  <table>${linhas(aguardando)}</table>
+  <div class="sub-tot"><span>Subtotal aguardando</span><span>${R(totAgu)}</span></div>
+
+  <div class="geral">
+    <span>TOTAL DA PREVISÃO<br><small style="font-weight:400;opacity:.7">
+      ${pct.toFixed(1).replace('.',',')}% já confirmado</small></span>
+    <span>${R(totGeral)}</span>
+  </div>
+
+  <div class="rod">Dashboard RIOSULENSE — documento gerado automaticamente</div>
+</body></html>`;
+
+  const win = window.open('', '_blank');
+  if(!win){
+    alert('O navegador bloqueou a janela. Libere os pop-ups deste site e tente de novo.');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+  win.onload = () => { win.focus(); win.print(); };
 }
 
 function getTotalClientsPrevision(repIndex){
@@ -1926,27 +2026,41 @@ function loadData(){
 }
 
 // ── INIT ───────────────────────────────────────────────────────
-// 1. Define o mês vigente (atual)
-currentMonth = getVigenteMonth();
+// 0. Dados vêm do Google Sheet (fonte da verdade)
 
-// 2. Atualiza seletor dropdown para mês vigente
-const monthSelector = document.getElementById('month-selector');
-if(monthSelector) {
-  monthSelector.value = currentMonth;
+// ══════════════════════════════════════════════════════════════
+// INIT COM GOOGLE SHEET
+// ══════════════════════════════════════════════════════════════
+function initDashboard() {
+  // 1. Define o mês vigente
+  currentMonth = getVigenteMonth();
+
+  // 2. Atualiza seletor dropdown para mês vigente
+  const monthSelector = document.getElementById('month-selector');
+  if(monthSelector) {
+    monthSelector.value = currentMonth;
+  }
+
+  // 3. Continua inicialização
+  setAutoDate();
+  loadClientsData();    // carrega dados salvos de clientes da previsão
+  buildFilter();        // cria os checkboxes do dropdown
+  renderEditTable();    // cria inputs com valores BASE (saveData bloqueado: _ready=false)
+  renderTrimTable();    // idem
+  loadData();           // restaura os valores digitados do mês (se houver)
+  loadDataTrim();       // restaura os valores do trimestre selecionado
+  _ready = true;        // a partir daqui, saveData() pode gravar normalmente
+  updateFilterText();   // atualiza o texto do filtro
+  recalc();             // recalcula com valores restaurados + renderiza dashboard
+  recalcTrim();
 }
 
-// 3. Continua inicialização
-setAutoDate();
-loadClientsData();    // carrega dados salvos de clientes da previsão
-buildFilter();        // cria os checkboxes do dropdown
-renderEditTable();    // cria inputs com valores BASE (saveData bloqueado: _ready=false)
-renderTrimTable();    // idem
-loadData();           // restaura os valores digitados do mês (se houver)
-loadDataTrim();       // restaura os valores do trimestre selecionado
-_ready = true;        // a partir daqui, saveData() pode gravar normalmente
-updateFilterText();   // atualiza o texto do filtro
-recalc();             // recalcula com valores restaurados + renderiza dashboard
-recalcTrim();
+// Iniciar quando DOM estiver pronto
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initDashboard);
+} else {
+  initDashboard();
+}
 </script>
 </body>
 </html>
