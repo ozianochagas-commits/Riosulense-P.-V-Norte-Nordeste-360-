@@ -397,10 +397,18 @@
   
   /* Botão Confirmar com Checkmark */
   .modal-clients-list{border-top:1px solid #E8E8E8;padding-top:12px;}
-  .modal-client-item{display:flex;justify-content:space-between;align-items:center;
-    padding:10px;background:#F8F8F8;border-radius:6px;font-size:11px;}
+  .modal-client-item{display:grid;
+    grid-template-columns:1fr 96px 104px 96px 78px;
+    align-items:center;column-gap:8px;
+    padding:8px 10px;background:#F8F8F8;border-radius:6px;font-size:11px;}
   .modal-client-name{font-weight:700;color:var(--dark);}
-  .modal-client-value{color:var(--orange);font-weight:700;margin:0 10px;}
+  .modal-client-value{color:var(--orange);font-weight:700;text-align:right;}
+  .modal-client-item > .cel-num{text-align:right;}
+  .modal-client-item input[type=text]{width:100%;}
+  @media(max-width:650px){
+    .modal-client-item{grid-template-columns:1fr 74px 80px 74px 64px;
+      column-gap:5px;font-size:10px;padding:7px 6px;}
+  }
   .modal-client-remove{background:var(--red);color:white;border:none;border-radius:4px;padding:4px 8px;
     font-size:10px;cursor:pointer;font-weight:700;transition:background .2s;}
   .modal-client-remove:hover{background:#A93226;}
@@ -1089,11 +1097,11 @@ function renderClientsList(){
   head.className = 'modal-client-item';
   head.style.cssText = 'background:#1C1C1C;color:#fff;font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.5px;';
   head.innerHTML = `
-    <div style="flex:1;padding-left:26px;">Cliente</div>
-    <span style="width:92px;text-align:right;">Previsão</span>
-    <span style="width:100px;text-align:right;">Passou</span>
-    <span style="width:92px;text-align:right;">Gap</span>
-    <span style="width:70px;"></span>`;
+    <div style="padding-left:24px;">Cliente</div>
+    <span class="cel-num">Previsão</span>
+    <span class="cel-num">Passou</span>
+    <span class="cel-num">Gap</span>
+    <span></span>`;
   listContainer.appendChild(head);
 
   for(let idx = 0; idx < clients.length; idx++){
@@ -1112,16 +1120,16 @@ function renderClientsList(){
     const item = document.createElement('div');
     item.className = 'modal-client-item';
     item.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;flex:1;">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0;">
         <input type="checkbox" class="client-checkbox" id="check-${idx}" ${isChecked ? 'checked' : ''} onchange="toggleClientSelection(${idx})">
         <span class="modal-client-name">${client.name}</span>
       </div>
-      <span class="modal-client-value" style="width:92px;text-align:right;">${fmtN(clientValue)}</span>
-      <input type="text" value="${clientReal ? fmtN(clientReal) : ''}" placeholder="0,00"
-             style="width:100px;padding:4px 6px;border:2px solid #ddd;border-radius:5px;
-                    text-align:right;font-weight:700;font-size:10px;"
+      <span class="modal-client-value cel-num">${fmtN(clientValue)}</span>
+      <input type="text" class="cel-num" value="${clientReal ? fmtN(clientReal) : ''}" placeholder="0,00"
+             style="padding:4px 6px;border:2px solid #ddd;border-radius:5px;
+                    font-weight:700;font-size:10px;"
              onchange="setClientReal(${idx}, this.value)">
-      <span style="width:92px;text-align:right;font-weight:800;font-size:10px;color:${corGap};">
+      <span class="cel-num" style="font-weight:800;font-size:10px;color:${corGap};">
         ${clientReal ? (gap > 0 ? '+' : '') + fmtN(gap) : '—'}
       </span>
       <button class="modal-client-remove" onclick="removeClient(${idx})">Remover</button>
@@ -1136,11 +1144,11 @@ function renderClientsList(){
   foot.className = 'modal-client-item';
   foot.style.cssText = 'background:#f0f0f0;font-weight:900;font-size:10px;';
   foot.innerHTML = `
-    <div style="flex:1;padding-left:26px;">TOTAIS</div>
-    <span style="width:92px;text-align:right;">${fmtN(somaTotal)}</span>
-    <span style="width:100px;text-align:right;color:var(--orange);">${fmtN(somaPassou)}</span>
-    <span style="width:92px;text-align:right;color:${corTot};">${(gapTotal>0?'+':'')+fmtN(gapTotal)}</span>
-    <span style="width:70px;"></span>`;
+    <div style="padding-left:24px;">TOTAIS</div>
+    <span class="cel-num">${fmtN(somaTotal)}</span>
+    <span class="cel-num" style="color:var(--orange);">${fmtN(somaPassou)}</span>
+    <span class="cel-num" style="color:${corTot};">${(gapTotal>0?'+':'')+fmtN(gapTotal)}</span>
+    <span></span>`;
   listContainer.appendChild(foot);
 
   // Atualiza total no modal de clientes
