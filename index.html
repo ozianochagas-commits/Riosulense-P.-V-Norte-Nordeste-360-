@@ -1082,24 +1082,33 @@ function renderClientsList(){
     return;
   }
   
-  let somaTotal = 0;
-  
+  let somaTotal = 0, somaPassou = 0;
+
+  // Cabecalho das colunas
+  const head = document.createElement('div');
+  head.className = 'modal-client-item';
+  head.style.cssText = 'background:#1C1C1C;color:#fff;font-weight:800;font-size:9px;text-transform:uppercase;letter-spacing:.5px;';
+  head.innerHTML = `
+    <div style="flex:1;padding-left:26px;">Cliente</div>
+    <span style="width:92px;text-align:right;">Previsão</span>
+    <span style="width:100px;text-align:right;">Passou</span>
+    <span style="width:92px;text-align:right;">Gap</span>
+    <span style="width:70px;"></span>`;
+  listContainer.appendChild(head);
+
   for(let idx = 0; idx < clients.length; idx++){
     const client = clients[idx];
-    
-    // Converte para número
-    let clientValue = 0;
-    if(typeof client.value === 'number') {
-      clientValue = client.value;
-    } else if(typeof client.value === 'string') {
-      clientValue = parseFloat(client.value.replace(/\./g,'').replace(',','.')) || 0;
-    }
-    
-    // Soma TODOS os clientes, independente de seleção
-    somaTotal = somaTotal + clientValue;
-    
+
+    const clientValue = toNumber(client.value);
+    const clientReal  = toNumber(client.real);   // quanto o cliente realmente passou
+    const gap = clientReal - clientValue;        // negativo = faltou
+
+    somaTotal  += clientValue;
+    somaPassou += clientReal;
+
     const isChecked = client.selected || false;
-    
+    const corGap = gap > 0 ? '#1E7E34' : (gap < 0 ? '#C0392B' : '#888');
+
     const item = document.createElement('div');
     item.className = 'modal-client-item';
     item.innerHTML = `
@@ -1107,21 +1116,51 @@ function renderClientsList(){
         <input type="checkbox" class="client-checkbox" id="check-${idx}" ${isChecked ? 'checked' : ''} onchange="toggleClientSelection(${idx})">
         <span class="modal-client-name">${client.name}</span>
       </div>
-      <span class="modal-client-value">${fmtN(clientValue)}</span>
+      <span class="modal-client-value" style="width:92px;text-align:right;">${fmtN(clientValue)}</span>
+      <input type="text" value="${clientReal ? fmtN(clientReal) : ''}" placeholder="0,00"
+             style="width:100px;padding:4px 6px;border:2px solid #ddd;border-radius:5px;
+                    text-align:right;font-weight:700;font-size:10px;"
+             onchange="setClientReal(${idx}, this.value)">
+      <span style="width:92px;text-align:right;font-weight:800;font-size:10px;color:${corGap};">
+        ${clientReal ? (gap > 0 ? '+' : '') + fmtN(gap) : '—'}
+      </span>
       <button class="modal-client-remove" onclick="removeClient(${idx})">Remover</button>
     `;
     listContainer.appendChild(item);
   }
-  
+
+  // Linha de totais
+  const gapTotal = somaPassou - somaTotal;
+  const corTot = gapTotal > 0 ? '#1E7E34' : (gapTotal < 0 ? '#C0392B' : '#888');
+  const foot = document.createElement('div');
+  foot.className = 'modal-client-item';
+  foot.style.cssText = 'background:#f0f0f0;font-weight:900;font-size:10px;';
+  foot.innerHTML = `
+    <div style="flex:1;padding-left:26px;">TOTAIS</div>
+    <span style="width:92px;text-align:right;">${fmtN(somaTotal)}</span>
+    <span style="width:100px;text-align:right;color:var(--orange);">${fmtN(somaPassou)}</span>
+    <span style="width:92px;text-align:right;color:${corTot};">${(gapTotal>0?'+':'')+fmtN(gapTotal)}</span>
+    <span style="width:70px;"></span>`;
+  listContainer.appendChild(foot);
+
   // Atualiza total no modal de clientes
   if(modalTotal) {
     modalTotal.style.display = 'flex';
-    // Procura o span dentro de modal-total
     const spanTotal = modalTotal.querySelector('span:last-child');
     if(spanTotal) {
       spanTotal.textContent = R(somaTotal);
     }
   }
+}
+
+// Grava o valor que o cliente realmente passou
+function setClientReal(clientIdx, raw){
+  if(!CLIENTS[currentModalRepIndex]) return;
+  const client = CLIENTS[currentModalRepIndex][clientIdx];
+  if(!client) return;
+  client.real = toNumber(raw);
+  saveClientsData();
+  renderClientsList();
 }
 
 // ── EXPORTAR PREVISÃO EM PDF ─────────────────────────────────────
@@ -1142,20 +1181,41 @@ function exportPrevisaoPDF(){
 
   const confirmados = [];
   const aguardando  = [];
-  let totConf = 0, totAgu = 0;
+  let totConf = 0, totAgu = 0;              // previsto
+  let passConf = 0, passAgu = 0;            // realmente passou
 
   clients.forEach(c => {
     const v = toNumber(c.value);
-    if(c.selected){ confirmados.push({n:c.name, v:v}); totConf += v; }
-    else          { aguardando.push({n:c.name, v:v});  totAgu  += v; }
+    const p = toNumber(c.real);
+    const reg = {n:c.name, v:v, p:p, g:p-v};
+    if(c.selected){ confirmados.push(reg); totConf += v; passConf += p; }
+    else          { aguardando.push(reg);  totAgu  += v; passAgu  += p; }
   });
 
-  const totGeral = totConf + totAgu;
-  const pct = totGeral ? (totConf/totGeral*100) : 0;
+  const totGeral  = totConf + totAgu;
+  const passGeral = passConf + passAgu;
+  const gapGeral  = passGeral - totGeral;
+  const pct = totGeral ? (passGeral/totGeral*100) : 0;
+
+  const cel = c => {
+    if(!c.p) return '<td class="v cinza">—</td><td class="v cinza">—</td>';
+    const cor = c.g > 0 ? 'pos' : (c.g < 0 ? 'neg' : 'cinza');
+    return `<td class="v">${fmtN(c.p)}</td><td class="v ${cor}">${(c.g>0?'+':'')+fmtN(c.g)}</td>`;
+  };
 
   const linhas = arr => arr.length
-    ? arr.map(c => `<tr><td>${c.n}</td><td class="v">${fmtN(c.v)}</td></tr>`).join('')
-    : '<tr><td colspan="2" class="vazio">Nenhum cliente nesta situação.</td></tr>';
+    ? arr.map(c => `<tr><td>${c.n}</td><td class="v">${fmtN(c.v)}</td>${cel(c)}</tr>`).join('')
+    : '<tr><td colspan="4" class="vazio">Nenhum cliente nesta situação.</td></tr>';
+
+  const cab = '<tr class="cabtab"><td>Cliente</td><td class="v">Previsão</td><td class="v">Passou</td><td class="v">Gap</td></tr>';
+
+  const rodape = (prev, pass) => {
+    const g = pass - prev;
+    const cor = g > 0 ? 'pos' : (g < 0 ? 'neg' : '');
+    return `<div class="sub-tot"><span>Subtotal</span>
+      <span>Prev. ${R(prev)} &nbsp;·&nbsp; Passou <b>${R(pass)}</b>
+      &nbsp;·&nbsp; <b class="${cor}">${(g>0?'+':'')+R(g)}</b></span></div>`;
+  };
 
   const mesTexto = (document.getElementById('month-selector')||{}).selectedOptions
     ? document.getElementById('month-selector').selectedOptions[0].text : '';
@@ -1181,14 +1241,16 @@ function exportPrevisaoPDF(){
   h2.ag{background:#B8860B}
   table{width:100%;border-collapse:collapse;margin-bottom:4px}
   td{padding:3px 9px;font-size:10px;border-bottom:1px solid #eee;line-height:1.35}
-  td.v{text-align:right;font-weight:700;white-space:nowrap;width:110px}
+  td.v{text-align:right;font-weight:700;white-space:nowrap;width:88px}
   td.vazio{color:#999;font-style:italic;text-align:center}
+  tr.cabtab td{background:#1C1C1C;color:#fff;font-size:8px;font-weight:800;
+     text-transform:uppercase;letter-spacing:.5px;padding:4px 9px}
+  .pos{color:#1E7E34}  .neg{color:#C0392B}  .cinza{color:#bbb}
   .sub-tot{display:flex;justify-content:space-between;padding:5px 9px;
      background:#f4f4f4;border-radius:4px;font-size:10px;font-weight:800}
   .geral{margin-top:14px;background:#1C1C1C;color:#fff;border-radius:6px;
-     padding:10px 14px;display:flex;justify-content:space-between;align-items:center;
-     font-size:10px}
-  .geral span:last-child{font-size:16px;font-weight:900;color:#FE5000}
+     padding:11px 16px;display:flex;justify-content:space-between;align-items:center;
+     font-size:10px;gap:10px}
   .rod{margin-top:10px;font-size:8px;color:#999;text-align:center}
   @media print{
     body{background:#fff;padding:0}
@@ -1207,17 +1269,31 @@ function exportPrevisaoPDF(){
   <div class="sub">${mesTexto} &nbsp;·&nbsp; Emitido em ${new Date().toLocaleString('pt-BR')} &nbsp;·&nbsp; ${clients.length} cliente(s)</div>
 
   <h2 class="ok">✓ Confirmados / já passaram &nbsp;—&nbsp; ${confirmados.length} cliente(s)</h2>
-  <table>${linhas(confirmados)}</table>
-  <div class="sub-tot"><span>Subtotal confirmado</span><span>${R(totConf)}</span></div>
+  <table>${cab}${linhas(confirmados)}</table>
+  ${rodape(totConf, passConf)}
 
   <h2 class="ag">⏳ Ainda no aguardo &nbsp;—&nbsp; ${aguardando.length} cliente(s)</h2>
-  <table>${linhas(aguardando)}</table>
-  <div class="sub-tot"><span>Subtotal aguardando</span><span>${R(totAgu)}</span></div>
+  <table>${cab}${linhas(aguardando)}</table>
+  ${rodape(totAgu, passAgu)}
 
   <div class="geral">
-    <span>TOTAL DA PREVISÃO<br><small style="font-weight:400;opacity:.7">
-      ${pct.toFixed(1).replace('.',',')}% já confirmado</small></span>
-    <span>${R(totGeral)}</span>
+    <div>
+      <div style="font-size:9px;opacity:.65;letter-spacing:1px">PREVISTO</div>
+      <div style="font-size:14px;font-weight:900">${R(totGeral)}</div>
+    </div>
+    <div>
+      <div style="font-size:9px;opacity:.65;letter-spacing:1px">PASSOU</div>
+      <div style="font-size:14px;font-weight:900;color:#FE5000">${R(passGeral)}</div>
+    </div>
+    <div>
+      <div style="font-size:9px;opacity:.65;letter-spacing:1px">GAP</div>
+      <div style="font-size:14px;font-weight:900;color:${gapGeral>=0?'#5DD879':'#FF7B6B'}">
+        ${(gapGeral>0?'+':'')+R(gapGeral)}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:9px;opacity:.65;letter-spacing:1px">ATINGIDO</div>
+      <div style="font-size:20px;font-weight:900;color:#FE5000">${pct.toFixed(1).replace('.',',')}%</div>
+    </div>
   </div>
 
   <div class="rod">Dashboard RIOSULENSE — documento gerado automaticamente</div>
@@ -1268,6 +1344,13 @@ function loadClientsData(){
     const data = JSON.parse(raw);
     Object.keys(data).forEach(idx => {
       CLIENTS[idx] = data[idx];
+      // Normaliza: clientes antigos nao tem o campo "real"
+      if(Array.isArray(CLIENTS[idx])){
+        CLIENTS[idx].forEach(c => {
+          if(typeof c.value !== 'number') c.value = toNumber(c.value);
+          c.real = toNumber(c.real);
+        });
+      }
     });
   }catch(e){}
 }
