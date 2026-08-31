@@ -1466,7 +1466,11 @@ function renderTrimTable(){
 // Reconstrói apenas a tabela do dashboard (sem tocar em inputs)
 function buildDashTable(vals){
   const tbody=$('dash-tbody'); tbody.innerHTML='';
-  vals.forEach((r, repIdx)=>{
+  vals.forEach((r, _pos)=>{
+    // vals pode estar FILTRADO. O indice real em BASE/CLIENTS vem do nome,
+    // senao o tooltip mostra os clientes do representante errado.
+    let repIdx = BASE.findIndex(b => b.name === r.name);
+    if(repIdx < 0) repIdx = _pos;
     const proj=r.real+r.prev+r.car,atp=r.meta>0?r.real/r.meta:0,real_car=r.meta>0?(r.real+r.car)/r.meta:0,prev_pct=r.meta>0?r.prev/r.meta:0,prj=r.meta>0?proj/r.meta:0,bg=badge(prj);
     const atpW=Math.min(atp*100,100),carW=Math.min((r.meta>0?r.car/r.meta:0)*100,100),prevW=Math.min(prev_pct*100,100);
     tbody.innerHTML+=`<tr>
