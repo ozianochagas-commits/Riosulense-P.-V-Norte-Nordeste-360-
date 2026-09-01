@@ -610,10 +610,32 @@
     </div>
   </div>
   <span class="filter-badge" id="filter-badge">FILTRO ATIVO</span>
+  <button class="pdf-btn" id="btn-share" onclick="gerarLinkCompartilhar()" style="background:var(--dark);margin-left:auto;">
+    <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:white;"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+    Gerar Link
+  </button>
   <button class="pdf-btn" onclick="exportPDF()">
     <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 4h5v7h7v9H6V4zm2 9h8v1H8v-1zm0 2h8v1H8v-1zm0 2h5v1H8v-1z"/></svg>
     Exportar PDF
   </button>
+</div>
+
+<!-- BANNER MODO VISUALIZAÇÃO (link compartilhado) -->
+<div id="share-banner" style="display:none;background:linear-gradient(135deg,#1E7E34,#28a745);color:white;padding:8px 32px;font-size:12px;font-weight:700;align-items:center;justify-content:space-between;box-shadow:0 2px 6px rgba(0,0,0,.15);">
+  <span>👁️ <strong>Modo Visualização</strong> — você está vendo os dados compartilhados <span id="share-banner-ts" style="opacity:.85;font-weight:400;"></span>. As alterações aqui não afetam o original.</span>
+</div>
+
+<!-- MODAL LINK COMPARTILHADO -->
+<div class="modal-overlay" id="modal-share">
+  <div class="modal-content" style="max-width:560px;">
+    <div class="modal-header"><span>🔗 Link para Compartilhar</span><button class="modal-close" onclick="fecharLinkModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:#555;line-height:1.6;margin:0;">Este link carrega uma <strong>cópia dos dados atuais</strong>. Quem abrir vê exatamente o que você salvou agora, em modo visualização. Para atualizar, gere um link novo depois de alterar os dados.</p>
+      <textarea id="share-link-text" readonly style="width:100%;height:80px;padding:10px;border:2px solid #E0E0E0;border-radius:8px;font-size:11px;resize:none;box-sizing:border-box;font-family:monospace;color:#333;"></textarea>
+      <div id="share-link-size" style="font-size:10px;color:#999;"></div>
+      <button class="btn-modal-save" onclick="copiarLink()" style="background:var(--orange);"><span id="copy-btn-text">📋 Copiar Link</span></button>
+    </div>
+  </div>
 </div>
 
 <!-- PDF REP HEADER (visible only on print) -->
@@ -914,6 +936,7 @@
 <footer>Dashboard <span>RIOSULENSE</span> Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp;·Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp; Norte Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp;·Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp; Nordeste Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp;·Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp; Rio Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp;·Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp; <span id="footer-date">—</span></footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 <script>
 // ── DADOS MENSAIS BASE ──────────────────────────────────────────
 let BASE = [
@@ -2247,26 +2270,30 @@ async function importInativExcel(event){
     }
 
     INATIV_DATA = parsed;
-
-    // Ajusta rótulos das colunas de mês (sem apagar o filtro da coluna)
-    $('lbl-m1').textContent = parsed.months[0] || 'Mês 1';
-    $('lbl-m2').textContent = parsed.months[1] || 'Mês 2';
-    $('lbl-m3').textContent = parsed.months[2] || 'Mês 3';
-    $('inativ-period-label').textContent = parsed.months.join(' · ');
-
-    // Mostra resultados, esconde área de import
-    $('inativ-import-area').style.display = 'none';
-    $('inativ-results').style.display = 'block';
+    renderInativImported();
 
     const nFiliais = parsed.grupos.reduce((s,g)=>s+g.filiais.length,0);
     statusEl.textContent = '';
-    applyInativFilter();
     showNotification(`✓ ${parsed.grupos.length} grupos · ${nFiliais} filiais importados!`);
   }catch(err){
     statusEl.style.color = '#C0392B';
     statusEl.textContent = '❌ Erro ao ler o arquivo: ' + err.message;
     console.error(err);
   }
+}
+
+// Atualiza a UII a partir de INATIV_DATA (usado pela importação e pelo link compartilhado)
+function renderInativImported(){
+  if(!INATIV_DATA || !INATIV_DATA.grupos || !INATIV_DATA.grupos.length) return;
+  const m = INATIV_DATA.months;
+  const lbl1=$('lbl-m1'), lbl2=$('lbl-m2'), lbl3=$('lbl-m3');
+  if(lbl1) lbl1.textContent = m[0] || 'Mês 1';
+  if(lbl2) lbl2.textContent = m[1] || 'Mês 2';
+  if(lbl3) lbl3.textContent = m[2] || 'Mês 3';
+  const pl = $('inativ-period-label'); if(pl) pl.textContent = m.join(' · ');
+  const ia = $('inativ-import-area'); if(ia) ia.style.display = 'none';
+  const ir = $('inativ-results'); if(ir) ir.style.display = 'block';
+  applyInativFilter();
 }
 
 // Lê o XLSX cru e retorna {months:[...], clientes:[...]}
@@ -2599,6 +2626,105 @@ function clearInativImport(){
   sv('inativ-total', '—');
 }
 
+// ══════════ COMPARTILHAR VIA LINK (dados embutidos) ══════════
+// Gera um link com uma "foto" dos dados atuais. Quem abrir vê em modo visualização.
+function gerarLinkCompartilhar(){
+  if(typeof LZString === 'undefined'){
+    alert('A biblioteca de compressão não carregou. Verifique a conexão e recarregue a página.');
+    return;
+  }
+  // Salva o estado atual antes de empacotar
+  if(_ready){ try{ saveData(); saveDataTrim(); saveClientsData(); }catch(e){} }
+
+  // Coleta tudo que está salvo (mensal, trimestre, clientes)
+  const ls = {};
+  for(let i=0; i<localStorage.length; i++){
+    const k = localStorage.key(i);
+    if(k && k.indexOf('riosulense_') === 0) ls[k] = localStorage.getItem(k);
+  }
+  const payload = {
+    v: 1,
+    ts: Date.now(),
+    month: currentMonth,
+    ls: ls,
+    inativ: (INATIV_DATA && INATIV_DATA.grupos && INATIV_DATA.grupos.length) ? INATIV_DATA : null
+  };
+
+  let comp;
+  try{ comp = LZString.compressToEncodedURIComponent(JSON.stringify(payload)); }
+  catch(e){ alert('Erro ao gerar o link.'); return; }
+
+  const base = location.origin + location.pathname;
+  const link = base + '#d=' + comp;
+
+  const ta = $('share-link-text');
+  ta.value = link;
+  const kb = Math.round(link.length/1024);
+  $('share-link-size').textContent = `Tamanho do link: ~${kb} KB${kb>60?' (muito grande p/ alguns apps — considere compartilhar sem a planilha de grandes contas)':''}`;
+  $('modal-share').classList.add('show');
+  setTimeout(()=>{ ta.focus(); ta.select(); }, 100);
+}
+
+function fecharLinkModal(){ $('modal-share').classList.remove('show'); }
+
+function copiarLink(){
+  const ta = $('share-link-text');
+  ta.select(); ta.setSelectionRange(0, 999999);
+  const done = () => { const b=$('copy-btn-text'); if(b){ b.textContent='✓ Copiado!'; setTimeout(()=>b.textContent='📋 Copiar Link',2000);} };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ try{document.execCommand('copy');done();}catch(e){} });
+  } else {
+    try{ document.execCommand('copy'); done(); }catch(e){ alert('Selecione o texto e copie manualmente.'); }
+  }
+}
+
+// Carrega dados de um link compartilhado (#d=...). Retorna true se havia dados.
+function carregarLinkCompartilhado(){
+  try{
+    const h = location.hash || '';
+    if(h.indexOf('#d=') !== 0) return false;
+    if(typeof LZString === 'undefined') return false;
+    const comp = h.substring(3);
+    const json = LZString.decompressFromEncodedURIComponent(comp);
+    if(!json) return false;
+    const payload = JSON.parse(json);
+    if(!payload) return false;
+
+    // Restaura os dados salvos no armazenamento local (temporário, para exibir)
+    if(payload.ls){
+      Object.keys(payload.ls).forEach(k => { try{ localStorage.setItem(k, payload.ls[k]); }catch(e){} });
+    }
+    if(payload.month) currentMonth = payload.month;
+    if(payload.inativ) INATIV_DATA = payload.inativ;
+
+    window.__sharedView = true;
+    window.__sharedTs = payload.ts || null;
+    return true;
+  }catch(e){ return false; }
+}
+
+// Aplica o modo somente-visualização (link compartilhado)
+function aplicarModoVisualizacao(){
+  // Banner
+  const banner = $('share-banner');
+  if(banner){
+    banner.style.display = 'flex';
+    if(window.__sharedTs){
+      const d = new Date(window.__sharedTs);
+      $('share-banner-ts').textContent = '(gerado em ' + d.toLocaleString('pt-BR') + ')';
+    }
+  }
+  // Desabilita edição dos dados
+  document.querySelectorAll('.einput').forEach(i => { i.disabled = true; i.style.cursor='not-allowed'; i.style.opacity='.85'; });
+  // Esconde botões de edição/reset/gerar-link e o botão + de clientes
+  ['btn-share'].forEach(id => { const b=$(id); if(b) b.style.display='none'; });
+  document.querySelectorAll('.reset-btn, .prev-btn-add').forEach(b => b.style.display='none');
+  // Renderiza a análise de inatividade se veio no link
+  if(INATIV_DATA && INATIV_DATA.grupos && INATIV_DATA.grupos.length){
+    renderInativImported();
+  }
+}
+
 // Imprime um HTML completo usando um iframe oculto (não depende de pop-up).
 // Funciona em navegador normal e em prévias sandbox onde window.open é bloqueado.
 function printViaIframe(html){
@@ -2791,10 +2917,13 @@ function loadData(){
 // INIT COM GOOGLE SHEET
 // ══════════════════════════════════════════════════════════════
 function initDashboard() {
-  // 1. Define o mês vigente
-  currentMonth = getVigenteMonth();
+  // 0. Verifica se a página foi aberta por um link compartilhado (#d=...)
+  const shared = carregarLinkCompartilhado();
 
-  // 2. Atualiza seletor dropdown para mês vigente
+  // 1. Define o mês vigente (só quando NÃO veio de link — o link traz seu próprio mês)
+  if(!shared) currentMonth = getVigenteMonth();
+
+  // 2. Atualiza seletor dropdown para o mês atual
   const monthSelector = document.getElementById('month-selector');
   if(monthSelector) {
     monthSelector.value = currentMonth;
@@ -2812,6 +2941,9 @@ function initDashboard() {
   updateFilterText();   // atualiza o texto do filtro
   recalc();             // recalcula com valores restaurados + renderiza dashboard
   recalcTrim();
+
+  // 4. Se veio de link compartilhado, entra em modo somente-visualização
+  if(shared) aplicarModoVisualizacao();
 }
 
 // Iniciar quando DOM estiver pronto
