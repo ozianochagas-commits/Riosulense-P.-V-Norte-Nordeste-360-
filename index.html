@@ -1580,10 +1580,9 @@ function recalc(){
   sv('kpi-meta',R(tM)); sv('kpi-real',R(tR)); sv('kpi-real-car',R(tReal_car_kpi)); sv('kpi-prev',R(tP));
   sv('kpi-atp',P(tAtp)); sv('kpi-real-car-pct',P(tReal_car_pct)); sv('kpi-proj-pct',P(tPrj));
 
-  // 4b. Espelha Realizado / % Atingido / Carteira no cabeçalho de Clientes Inativos
-  sv('inativ-mes-real', R(tR));
-  sv('inativ-mes-atp', P(tAtp));
-  sv('inativ-mes-car', R(tC));
+  // 4b. Cabeçalho de Clientes Inativos: o "Resultado do Mês" segue o MÊS DA PLANILHA
+  //     (mesmo mês de "Grupos Sem Venda em ..."), não o seletor do topo.
+  updateInativResultado();
 
   // 5. Tabela do Dashboard
   buildDashTable(disp);
@@ -2253,12 +2252,64 @@ function setAutoDate(){
   updateInativMesNome();
 }
 
-// Sincroniza o nome do mês no bloco "Resultado do Mês" da aba Clientes Inativos
-function updateInativMesNome(){
-  const sel = document.getElementById('month-selector');
-  const nome = sel && sel.selectedOptions[0] ? sel.selectedOptions[0].text : '';
-  if(nome) sv('inativ-mes-nome', nome);
+// Nome completo do mês a partir da chave 'YYYY-MM'
+function monthFullName(key){
+  const mn = {'2026-01':'Janeiro 2026','2026-02':'Fevereiro 2026','2026-03':'Março 2026','2026-04':'Abril 2026','2026-05':'Maio 2026','2026-06':'Junho 2026','2026-07':'Julho 2026','2026-08':'Agosto 2026','2026-09':'Setembro 2026','2026-10':'Outubro 2026','2026-11':'Novembro 2026','2026-12':'Dezembro 2026'};
+  if(mn[key]) return mn[key];
+  const p = String(key||'').split('-'); const nomes=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  return p.length===2 ? (nomes[parseInt(p[1])]||'')+' '+p[0] : '';
 }
+
+// Mês de referência da análise (ÚLTIMO mês da planilha importada), no formato 'YYYY-MM'.
+// Ex.: 'Ago./26' → '2026-08'. É o mesmo mês de "Grupos Sem Venda em ...".
+function inativRefMonthKey(){
+  const arr = (INATIV_DATA && INATIV_DATA.months) || [];
+  const last = arr[arr.length-1] || '';
+  const m = String(last).toLowerCase().match(/([a-zç]{3})[a-zç]*\.?\/?\s*(\d{2,4})/);
+  if(!m) return null;
+  const map={jan:'01',fev:'02',mar:'03',abr:'04',mai:'05',jun:'06',jul:'07',ago:'08',set:'09',out:'10',nov:'11',dez:'12'};
+  const mm = map[m[1]]; if(!mm) return null;
+  let yy = m[2]; if(yy.length===2) yy = '20'+yy;
+  return yy+'-'+mm;
+}
+
+// Resultado do Dashboard (Realizado / % Atingido / Carteira) de um mês específico,
+// lido dos dados salvos (soma de TODOS os representantes). null se não houver dados.
+function resultadoDoMes(monthKey){
+  if(!monthKey) return null;
+  try{
+    const raw = localStorage.getItem('riosulense_'+monthKey);
+    if(!raw) return null;
+    const data = JSON.parse(raw);
+    if(!data.monthly) return null;
+    const num = s => parseFloat(String(s).replace(/\./g,'').replace(',','.')) || 0;
+    let tM=0,tR=0,tC=0;
+    data.monthly.forEach(d => { tM += num(d.meta); tR += num(d.real); tC += num(d.car); });
+    return { real: R(tR), atp: P(tM>0 ? tR/tM : 0), car: R(tC) };
+  }catch(e){ return null; }
+}
+
+// Sincroniza o bloco "Resultado do Mês" da aba Clientes Inativos com o MÊS DA PLANILHA
+// (o mesmo de "Grupos Sem Venda em ..."), para as datas nunca ficarem divergentes.
+function updateInativResultado(){
+  const key = inativRefMonthKey();
+  const nome = key ? monthFullName(key) : '';
+  if(nome) sv('inativ-mes-nome', nome);
+  // Link compartilhado → usa o "Resultado" que veio embutido no link.
+  if(window.__resMes){
+    sv('inativ-mes-real', window.__resMes.real || '—');
+    sv('inativ-mes-atp',  window.__resMes.atp  || '—');
+    sv('inativ-mes-car',  window.__resMes.car  || '—');
+    return;
+  }
+  const r = resultadoDoMes(key);
+  sv('inativ-mes-real', r ? r.real : '—');
+  sv('inativ-mes-atp',  r ? r.atp  : '—');
+  sv('inativ-mes-car',  r ? r.car  : '—');
+}
+
+// (compat) mantém a chamada antiga apontando para a nova lógica
+function updateInativMesNome(){ updateInativResultado(); }
 
 // ── DADOS DE INATIVIDADE (importados da planilha) ───────────
 // Preenchido ao importar o Excel de "Análise de Grandes Contas"
@@ -2398,6 +2449,7 @@ function refreshInativForRep(){
   if(badge) badge.textContent = escolhido || 'Todos os Representantes';
 
   renderInativImported();
+  updateInativResultado();   // sincroniza o "Resultado do Mês" com o mês da planilha
 }
 
 // Combina TODOS os representantes: cada CliAgrup aparece uma vez, e cada filial
@@ -3017,17 +3069,20 @@ function gerarLinkPorRep(){
   if(!rep){ alert('Escolha UM representante no seletor "Ver representante" antes de gerar o link individual.'); return; }
   const dados = INATIV_BY_REP[rep];
   if(!dados || !dados.grupos || !dados.grupos.length){ alert('Sem dados para ' + rep + '.'); return; }
-  const selMes = document.getElementById('month-selector');
   const txt = id => { const e=document.getElementById(id); return e ? (e.textContent||'').trim() : ''; };
+  // O MÊS do link é o MÊS DA PLANILHA deste representante (o mesmo de "Grupos Sem Venda em ..."),
+  // para as datas nunca ficarem divergentes. Guarda também o "Resultado do Mês" desse mês.
+  const meses = (dados.months || []);
+  const ult = meses[meses.length-1] || '';
+  const mKey = (function(){ const m=String(ult).toLowerCase().match(/([a-zç]{3})[a-zç]*\.?\/?\s*(\d{2,4})/); if(!m) return currentMonth; const map={jan:'01',fev:'02',mar:'03',abr:'04',mai:'05',jun:'06',jul:'07',ago:'08',set:'09',out:'10',nov:'11',dez:'12'}; const mm=map[m[1]]; if(!mm) return currentMonth; let yy=m[2]; if(yy.length===2) yy='20'+yy; return yy+'-'+mm; })();
+  const rMes = resultadoDoMes(mKey) || { real: txt('inativ-mes-real'), atp: txt('inativ-mes-atp'), car: txt('inativ-mes-car') };
   const payload = {
     v: 1, ts: Date.now(),
     inativByRep: { [rep]: dados },
     lockRep: rep, onlyInativ: true,
-    // MÊS selecionado + o "Resultado do Mês" que está na tela agora,
-    // para o link abrir mostrando exatamente o mês escolhido.
-    month: currentMonth,
-    mesNome: (selMes && selMes.selectedOptions[0]) ? selMes.selectedOptions[0].text : '',
-    resMes: { real: txt('inativ-mes-real'), atp: txt('inativ-mes-atp'), car: txt('inativ-mes-car') }
+    month: mKey,
+    mesNome: monthFullName(mKey) || '',
+    resMes: rMes
   };
   // Link INSTANTÂNEO com os dados embutidos — funciona sempre, sem depender de
   // internet/nuvem (que às vezes falhava). Abre com SÓ a informação do rep escolhido.
@@ -3178,6 +3233,9 @@ function aplicarModoVisualizacao(){
       if(t.getAttribute('onclick') && t.getAttribute('onclick').indexOf('inatividade') < 0) t.style.display = 'none';
     });
     const toolbar = document.querySelector('.toolbar'); if(toolbar) toolbar.style.display='none';
+    // TRAVA o seletor de mês (quem recebe o link não pode alterar o mês).
+    const selMes = document.getElementById('month-selector');
+    if(selMes){ selMes.disabled = true; selMes.style.cursor='not-allowed'; selMes.style.opacity='.9'; selMes.setAttribute('onclick','return false;'); }
     // vai para a aba Clientes Inativos
     const tabInativ = Array.from(document.querySelectorAll('.tab')).find(t => t.getAttribute('onclick') && t.getAttribute('onclick').indexOf('inatividade')>=0);
     if(tabInativ) showTab(tabInativ, 'inatividade');
