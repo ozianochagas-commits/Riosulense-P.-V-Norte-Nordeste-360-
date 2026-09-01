@@ -546,6 +546,7 @@
   <div class="tab active" onclick="showTab(this,'dashboard')">📊 &nbsp;Dashboard</div>
   <div class="tab" onclick="showTab(this,'previsoes')">✏️ &nbsp;Editar Dados</div>
   <div class="tab" onclick="showTab(this,'trimestre')">📅 &nbsp;Trimestre</div>
+  <div class="tab" onclick="showTab(this,'inatividade')">🔴 &nbsp;Clientes Inativos</div>
 </div>
 
 <style>
@@ -565,6 +566,13 @@
   .filter-option:last-child {border-bottom:none;}
   .filter-option input[type="checkbox"] {cursor:pointer;width:14px;height:14px;}
   .filter-option label {flex:1;cursor:pointer;margin:0;}
+
+  /* Filtro por coluna de mês no cabeçalho */
+  .th-month {display:flex;flex-direction:column;align-items:center;gap:4px;}
+  .col-filter {font-size:8px;font-weight:700;padding:2px 4px;border-radius:4px;border:1px solid #555;
+    background:#2a2a2a;color:#fff;cursor:pointer;outline:none;max-width:96px;}
+  .col-filter:focus {border-color:var(--orange);}
+  .col-filter option {background:#fff;color:#333;}
 </style>
 
 <div class="toolbar">
@@ -754,6 +762,90 @@
 
 </div>
 
+<!-- ══════════ ANÁLISE DE INATIVIDADE ══════════ -->
+<div class="page" id="page-inatividade">
+  <div class="phero">
+    <div>
+      <h2>🔴 Clientes Sem Vendas — Análise de Grandes Contas</h2>
+      <div style="display:inline-flex;align-items:center;gap:8px;background:rgba(254,80,0,.18);border:1px solid var(--orange2);border-radius:20px;padding:5px 14px;margin:8px 0 6px;">
+        <span style="font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,.7);text-transform:uppercase;">👤 Representante:</span>
+        <strong id="inativ-rep-name" style="font-size:12px;color:var(--orange2);font-weight:900;">Todos os Representantes</strong>
+      </div>
+      <p>Importe a planilha de <strong>Análise de Grandes Contas</strong> (Excel). Primeiro o <strong>GERAL do grupo</strong> (comprou ou não).<br>
+         Clique num grupo para abrir as <strong>filiais</strong>, e na filial para ver as <strong>famílias</strong> compradas e valores.</p>
+    </div>
+    <div class="htotal" style="text-align:right;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:1px;color:rgba(255,255,255,.55);text-transform:uppercase;margin-bottom:6px;">📊 Resultado de <span id="inativ-mes-nome" style="color:var(--orange2);">—</span> (Dashboard)</div>
+      <div style="display:flex;gap:18px;justify-content:flex-end;margin-bottom:10px;">
+        <div><div style="font-size:8px;opacity:.65;text-transform:uppercase;letter-spacing:.5px;">Realizado</div><strong id="inativ-mes-real" style="font-size:15px;color:#fff;font-weight:900;">—</strong></div>
+        <div><div style="font-size:8px;opacity:.65;text-transform:uppercase;letter-spacing:.5px;">% Atingido</div><strong id="inativ-mes-atp" style="font-size:15px;color:var(--orange2);font-weight:900;">—</strong></div>
+        <div><div style="font-size:8px;opacity:.65;text-transform:uppercase;letter-spacing:.5px;">Carteira</div><strong id="inativ-mes-car" style="font-size:15px;color:#7CB342;font-weight:900;">—</strong></div>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,.15);padding-top:8px;">
+        <span>Grupos Sem Venda</span><strong id="inativ-total">—</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÁREA DE IMPORTAÇÃO -->
+  <div id="inativ-import-area" style="background:white;border:3px dashed var(--orange);border-radius:12px;padding:36px 24px;text-align:center;margin-bottom:24px;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+    <div style="font-size:48px;margin-bottom:12px;">📥</div>
+    <h3 style="font-size:18px;font-weight:900;color:var(--dark);margin-bottom:8px;">Importar Planilha de Vendas</h3>
+    <p style="font-size:12px;color:#777;margin-bottom:20px;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.6;">
+      Selecione o arquivo <strong>.xlsx</strong> no formato "Análise de Grandes Contas".<br>
+      O sistema lê a hierarquia (Cliente → Família → Produto) e os valores mensais automaticamente.
+    </p>
+    <input type="file" id="inativ-file-input" accept=".xlsx" style="display:none;" onchange="importInativExcel(event)">
+    <button class="pdf-btn" onclick="document.getElementById('inativ-file-input').click()" style="margin:0 auto;display:inline-flex;font-size:13px;padding:12px 28px;">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 4h5v7h7v9H6V4z"/></svg>
+      Escolher Planilha Excel
+    </button>
+    <div id="inativ-import-status" style="margin-top:16px;font-size:12px;font-weight:700;"></div>
+  </div>
+
+  <!-- ÁREA DE RESULTADOS (oculta até importar) -->
+  <div id="inativ-results" style="display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:220px;">
+        <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;">🔍 Buscar Cliente:</label>
+        <input type="text" id="inativ-search" oninput="applyInativFilter()" placeholder="Digite o nome do cliente..." style="width:100%;margin-top:6px;padding:8px 12px;border:2px solid #E0E0E0;border-radius:7px;font-size:11px;font-weight:600;outline:none;box-sizing:border-box;">
+      </div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+        <div>
+          <label style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px;">Filtrar por mês sem venda:</label>
+          <select id="inativ-months-filter" onchange="applyInativFilter()" style="padding:8px 12px;border:2px solid #E0E0E0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;">
+            <option value="">Todos os clientes</option>
+            <option value="any">Qualquer mês sem venda</option>
+            <option value="m1">Sem venda no 1º mês</option>
+            <option value="m2">Sem venda no 2º mês</option>
+            <option value="m3">Sem venda no 3º mês</option>
+            <option value="all3">Sem venda nos 3 meses</option>
+          </select>
+        </div>
+        <button class="pdf-btn" onclick="exportInativPDF()" style="margin:0;">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 4h5v7h7v9H6V4z"/></svg>
+          Exportar PDF
+        </button>
+        <button class="reset-btn" onclick="clearInativImport()" style="height:38px;border-radius:6px">↺ Nova Importação</button>
+      </div>
+    </div>
+
+    <div class="stitle" style="border-radius:8px 8px 0 0;">📋 &nbsp;Grupos e Filiais — <span id="inativ-period-label">Período</span> &nbsp;<span style="font-weight:400;font-size:9px;opacity:.8;">(clique num grupo para ver as filiais)</span></div>
+    <div class="twrap" style="overflow-x:auto;">
+      <table>
+        <thead><tr id="inativ-thead">
+          <th style="text-align:left;padding-left:14px;">Grupo / Filial</th>
+          <th id="th-m1"><div class="th-month"><span id="lbl-m1">Mês 1</span><select class="col-filter" data-col="0" onchange="applyInativFilter()"><option value="">Todos</option><option value="nao">✗ Não comprou</option><option value="sim">✓ Comprou</option></select></div></th>
+          <th id="th-m2"><div class="th-month"><span id="lbl-m2">Mês 2</span><select class="col-filter" data-col="1" onchange="applyInativFilter()"><option value="">Todos</option><option value="nao">✗ Não comprou</option><option value="sim">✓ Comprou</option></select></div></th>
+          <th id="th-m3"><div class="th-month"><span id="lbl-m3">Mês 3</span><select class="col-filter" data-col="2" onchange="applyInativFilter()"><option value="">Todos</option><option value="nao">✗ Não comprou</option><option value="sim">✓ Comprou</option></select></div></th>
+          <th>Meses Sem Venda</th><th>Principais Famílias (última compra)</th><th>Status</th>
+        </tr></thead>
+        <tbody id="inativ-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL DE DETALHES DE PREVISÃO -->
 <div id="modal-prev" class="modal-overlay">
   <div class="modal-content">
@@ -802,6 +894,7 @@
 
 <footer>Dashboard <span>RIOSULENSE</span> Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp;·Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp; Norte Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp;·Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp; Nordeste Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp;·Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp; Rio Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp;·Dashboard <span>RIOSULENSE</span> &nbsp;·&nbsp; Norte &nbsp;·&nbsp; Nordeste &nbsp;·&nbsp; Rio &nbsp;·&nbsp; Março 2026nbsp; <span id="footer-date">—</span></footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // ── DADOS MENSAIS BASE ──────────────────────────────────────────
 let BASE = [
@@ -1311,14 +1404,7 @@ function exportPrevisaoPDF(){
 </div>
 </body></html>`;
 
-  const win = window.open('', '_blank');
-  if(!win){
-    alert('O navegador bloqueou a janela. Libere os pop-ups deste site e tente de novo.');
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
-  win.onload = () => { win.focus(); win.print(); };
+  printViaIframe(html);
 }
 
 function getTotalClientsPrevision(repIndex){
@@ -1414,6 +1500,11 @@ function recalc(){
   const tReal_car_pct = tM>0?(tR+tC)/tM:0;
   sv('kpi-meta',R(tM)); sv('kpi-real',R(tR)); sv('kpi-real-car',R(tReal_car_kpi)); sv('kpi-prev',R(tP));
   sv('kpi-atp',P(tAtp)); sv('kpi-real-car-pct',P(tReal_car_pct)); sv('kpi-proj-pct',P(tPrj));
+
+  // 4b. Espelha Realizado / % Atingido / Carteira no cabeçalho de Clientes Inativos
+  sv('inativ-mes-real', R(tR));
+  sv('inativ-mes-atp', P(tAtp));
+  sv('inativ-mes-car', R(tC));
 
   // 5. Tabela do Dashboard
   buildDashTable(disp);
@@ -1919,15 +2010,21 @@ function updateFilterText(){
 
   // Atualiza o texto do botão
   const filterText = $('filter-text');
+  let repLabel;
   if(allChecked){
-    filterText.textContent = 'Todos os Representantes';
+    repLabel = 'Todos os Representantes';
   } else if(selectedCount === 1){
     const selected = Array.from(checkboxes).find(cb => cb.checked);
     const idx = parseInt(selected.dataset.idx);
-    filterText.textContent = BASE[idx].name;
+    repLabel = BASE[idx].name;
   } else {
-    filterText.textContent = `${selectedCount} Representante${selectedCount !== 1 ? 's' : ''} Selecionados`;
+    repLabel = `${selectedCount} Representante${selectedCount !== 1 ? 's' : ''} Selecionados`;
   }
+  filterText.textContent = repLabel;
+
+  // Reflete o representante selecionado na aba Clientes Inativos
+  const inativRep = $('inativ-rep-name');
+  if(inativRep) inativRep.textContent = repLabel;
 }
 
 // Marca/desmarca todos os representantes
@@ -2047,6 +2144,7 @@ function changeMonth(){
   
   const hdrMonth = $('hdr-month');
   if(hdrMonth) hdrMonth.textContent = monthNames[newMonth];
+  updateInativMesNome();
   
   // 5. Renderiza inputs (agora com valores padrão de BASE)
   renderEditTable();
@@ -2077,11 +2175,535 @@ function setAutoDate(){
   if(hm) hm.textContent = `${mes} ${ano}`;
   if(hd) hd.textContent = `Atualizado em ${dia}/${mesNum}/${ano}`;
   if(fd) fd.textContent = `${mes} ${ano}`;
+  updateInativMesNome();
 }
+
+// Sincroniza o nome do mês no bloco "Resultado do Mês" da aba Clientes Inativos
+function updateInativMesNome(){
+  const sel = document.getElementById('month-selector');
+  const nome = sel && sel.selectedOptions[0] ? sel.selectedOptions[0].text : '';
+  if(nome) sv('inativ-mes-nome', nome);
+}
+
+// ── DADOS DE INATIVIDADE (importados da planilha) ───────────
+// Preenchido ao importar o Excel de "Análise de Grandes Contas"
+// Hierarquia: Grupo (CliAgrup) → Filiais (Cliente) → Famílias
+let INATIV_DATA = {
+  months: [],       // ex: ['Jun./26','Jul./26','Ago./26']
+  grupos: []        // [{nome, vals:[v1,v2,v3], filiais:[{nome, vals, familias:[{nome, vals}]}]}]
+};
 
 // ── VARIÁVEIS GLOBAIS ────────────────────────────────────────
 let _ready = false; // impede saveData de rodar antes do loadData
 let currentMonth = '2026-03'; // Mês selecionado (formato YYYY-MM)
+
+// ── ANÁLISE DE INATIVIDADE (IMPORTAÇÃO DE PLANILHA) ─────────
+// Lê o Excel "Análise de Grandes Contas" cru (JSZip + XML),
+// usando o índice de estilo de cada célula p/ descobrir a
+// hierarquia (indentação): Cliente (ind 4) → Família (ind 6).
+
+async function importInativExcel(event){
+  const file = event.target.files[0];
+  if(!file) return;
+
+  const statusEl = $('inativ-import-status');
+  statusEl.style.color = 'var(--dark)';
+  statusEl.textContent = '⏳ Lendo planilha...';
+
+  if(typeof JSZip === 'undefined'){
+    statusEl.style.color = '#C0392B';
+    statusEl.textContent = '❌ Biblioteca de leitura não carregou. Verifique sua conexão e recarregue a página.';
+    return;
+  }
+
+  try{
+    const buf = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const parsed = await parseGrandesContas(zip);
+
+    if(!parsed.grupos.length){
+      statusEl.style.color = '#C0392B';
+      statusEl.textContent = '⚠️ Nenhum cliente encontrado. Confirme que é a planilha "Análise de Grandes Contas".';
+      return;
+    }
+
+    INATIV_DATA = parsed;
+
+    // Ajusta rótulos das colunas de mês (sem apagar o filtro da coluna)
+    $('lbl-m1').textContent = parsed.months[0] || 'Mês 1';
+    $('lbl-m2').textContent = parsed.months[1] || 'Mês 2';
+    $('lbl-m3').textContent = parsed.months[2] || 'Mês 3';
+    $('inativ-period-label').textContent = parsed.months.join(' · ');
+
+    // Mostra resultados, esconde área de import
+    $('inativ-import-area').style.display = 'none';
+    $('inativ-results').style.display = 'block';
+
+    const nFiliais = parsed.grupos.reduce((s,g)=>s+g.filiais.length,0);
+    statusEl.textContent = '';
+    applyInativFilter();
+    showNotification(`✓ ${parsed.grupos.length} grupos · ${nFiliais} filiais importados!`);
+  }catch(err){
+    statusEl.style.color = '#C0392B';
+    statusEl.textContent = '❌ Erro ao ler o arquivo: ' + err.message;
+    console.error(err);
+  }
+}
+
+// Lê o XLSX cru e retorna {months:[...], clientes:[...]}
+async function parseGrandesContas(zip){
+  // 1. styles.xml → mapa índice-de-estilo → indentação
+  const stylesXml = await zip.file('xl/styles.xml').async('string');
+  const cellXfsMatch = stylesXml.match(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/);
+  const styleIndent = {};
+  if(cellXfsMatch){
+    const xfs = cellXfsMatch[1].match(/<xf[\s\S]*?(?:\/>|<\/xf>)/g) || [];
+    xfs.forEach((xf, i) => {
+      const m = xf.match(/indent="(\d+)"/);
+      styleIndent[i] = m ? parseInt(m[1]) : 0;
+    });
+  }
+
+  // 2. sharedStrings.xml → array de textos
+  const strings = [];
+  const ssFile = zip.file('xl/sharedStrings.xml');
+  if(ssFile){
+    const ssXml = await ssFile.async('string');
+    (ssXml.match(/<si>[\s\S]*?<\/si>/g) || []).forEach(si => {
+      const texts = si.match(/<t[^>]*>([\s\S]*?)<\/t>/g) || [];
+      strings.push(texts.map(t => t.replace(/<[^>]+>/g,'')).join('')
+        .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#10;/g,' '));
+    });
+  }
+
+  // 3. localiza a 1ª planilha
+  let sheetPath = 'xl/worksheets/sheet1.xml';
+  if(!zip.file(sheetPath)){
+    const cand = Object.keys(zip.files).find(f => /xl\/worksheets\/sheet\d+\.xml$/.test(f));
+    if(cand) sheetPath = cand;
+  }
+  const sheetXml = await zip.file(sheetPath).async('string');
+  const rows = sheetXml.match(/<row[^>]*>[\s\S]*?<\/row>/g) || [];
+
+  function cellVal(cellXml){
+    if(!cellXml) return null;
+    const isStr = /t="s"/.test(cellXml);
+    const vm = cellXml.match(/<v>([\s\S]*?)<\/v>/);
+    if(!vm) return null;
+    return isStr ? strings[parseInt(vm[1])] : parseFloat(vm[1]);
+  }
+  function cellStyle(cellXml){ const m = cellXml.match(/ s="(\d+)"/); return m ? parseInt(m[1]) : 0; }
+
+  // 4. cabeçalho: extrai nomes dos meses das colunas de valor (E,F,G)
+  let months = ['Mês 1','Mês 2','Mês 3'];
+  if(rows[0]){
+    const hCells = {};
+    (rows[0].match(/<c [^>]*(?:\/>|>[\s\S]*?<\/c>)/g)||[]).forEach(c => {
+      const rm = c.match(/r="([A-Z]+)\d+"/); if(rm) hCells[rm[1]] = c;
+    });
+    const parseMonth = raw => {
+      if(!raw) return null;
+      const m = raw.match(/([A-Za-zçÇ]{3,}\.?\/?\s*\d{2,4})\s*$/);
+      return m ? m[1].trim() : raw.replace(/VlrFatTot\s*R\$/i,'').replace(/\n/g,' ').trim();
+    };
+    const e = parseMonth(cellVal(hCells['E']));
+    const f = parseMonth(cellVal(hCells['F']));
+    const g = parseMonth(cellVal(hCells['G']));
+    if(e) months = [e, f||'Mês 2', g||'Mês 3'];
+  }
+
+  // 5. percorre linhas montando Grupo(ind=2) → Filial(ind=4) → Família(ind=6)
+  const grupos = [];
+  let curGrupo = null, curFilial = null;
+  rows.forEach(row => {
+    const cells = {};
+    (row.match(/<c [^>]*(?:\/>|>[\s\S]*?<\/c>)/g)||[]).forEach(c => {
+      const rm = c.match(/r="([A-Z]+)\d+"/); if(rm) cells[rm[1]] = c;
+    });
+    const a = cells['A']; if(!a) return;
+    const name = cellVal(a); if(name === null || name === '') return;
+    const indent = styleIndent[cellStyle(a)] || 0;
+    const v1 = cellVal(cells['E']) || 0;
+    const v2 = cellVal(cells['F']) || 0;
+    const v3 = cellVal(cells['G']) || 0;
+    if(indent === 2){
+      curGrupo = {nome:name, vals:[v1,v2,v3], filiais:[]};
+      curFilial = null;
+      grupos.push(curGrupo);
+    } else if(indent === 4){
+      curFilial = {nome:name, vals:[v1,v2,v3], familias:[]};
+      // se não houver grupo antes (planilha atípica), cria grupo espelho
+      if(!curGrupo){ curGrupo = {nome:name, vals:[v1,v2,v3], filiais:[]}; grupos.push(curGrupo); }
+      curGrupo.filiais.push(curFilial);
+    } else if(indent === 6 && curFilial){
+      curFilial.familias.push({nome:name, vals:[v1,v2,v3]});
+    }
+  });
+
+  return {months, grupos};
+}
+
+// Retorna GRUPOS filtrados conforme busca, filtro geral e filtros por coluna
+function getFilteredInativGrupos(){
+  const search = ($('inativ-search').value || '').trim().toLowerCase();
+  const monthsFilter = $('inativ-months-filter').value;
+
+  // Lê os filtros de cada coluna de mês: '', 'nao' (não comprou) ou 'sim' (comprou)
+  const colFilters = [null,null,null];
+  document.querySelectorAll('.col-filter').forEach(sel => {
+    colFilters[parseInt(sel.dataset.col)] = sel.value || null;
+  });
+
+  return INATIV_DATA.grupos.filter(g => {
+    // Busca por nome do grupo OU de qualquer filial
+    if(search){
+      const noGrupo = g.nome.toLowerCase().includes(search);
+      const naFilial = g.filiais.some(f => f.nome.toLowerCase().includes(search));
+      if(!noGrupo && !naFilial) return false;
+    }
+
+    // "sem venda" no mês k = grupo não comprou OU alguma filial não comprou
+    const sem = [0,1,2].map(k => gGrupoTemSemVenda(g, k));
+
+    // Filtros por coluna (combinados com E) — precisa passar em TODOS
+    for(let k=0; k<3; k++){
+      if(colFilters[k] === 'nao' && !sem[k]) return false;   // quero "não comprou" mas comprou tudo
+      if(colFilters[k] === 'sim' && sem[k])  return false;   // quero "comprou" mas alguém não comprou
+    }
+
+    // Filtro geral (dropdown de atalho)
+    switch(monthsFilter){
+      case 'any':  return sem[0] || sem[1] || sem[2];
+      case 'm1':   return sem[0];
+      case 'm2':   return sem[1];
+      case 'm3':   return sem[2];
+      case 'all3': return sem[0] && sem[1] && sem[2];
+      default:     return true;
+    }
+  });
+}
+
+// true se, no mês k, o grupo não comprou OU alguma filial não comprou
+function gGrupoTemSemVenda(g, k){
+  if(g.vals[k] === 0) return true;
+  return g.filiais.some(f => f.vals[k] === 0);
+}
+// nº de filiais sem venda no mês k
+function nFiliaisSemVenda(g, k){
+  return g.filiais.filter(f => f.vals[k] === 0).length;
+}
+
+// Célula de venda de FILIAL/família: valor verde se comprou, "NÃO" vermelho se 0
+function inativCellHtml(v){
+  return v === 0
+    ? '<td style="color:#C0392B;font-weight:800;background:#FDECEA;text-align:center">NÃO</td>'
+    : `<td style="color:#1E7E34;font-weight:700;text-align:right">${R(v)}</td>`;
+}
+
+// Célula de venda do GRUPO: mostra valor + aviso se filiais não compraram naquele mês
+function inativGroupCell(g, k){
+  const v = g.vals[k];
+  const nSem = nFiliaisSemVenda(g, k);
+  if(v === 0){
+    return '<td style="color:#C0392B;font-weight:800;background:#FDECEA;text-align:center">NÃO</td>';
+  }
+  const warn = nSem > 0
+    ? `<div style="font-size:8px;color:#C0392B;font-weight:800;margin-top:2px;white-space:nowrap;">⚠ ${nSem} ${nSem>1?'filiais':'filial'} s/ venda</div>`
+    : '';
+  const bg = nSem > 0 ? 'background:#FFF7E6;' : '';
+  return `<td style="color:#1E7E34;font-weight:700;text-align:right;${bg}">${R(v)}${warn}</td>`;
+}
+
+function inativStatus(vals){
+  const numSem = vals.filter(v=>v===0).length;
+  if(numSem === 0) return {c:'batida', t:'COMPROU TODOS'};
+  if(numSem === 3) return {c:'critico', t:'NÃO COMPROU NADA'};
+  return {c:'risco', t:numSem+' MÊS'+(numSem>1?'ES':'')+' S/ VENDA'};
+}
+
+// Status do GRUPO considerando filiais
+function inativGroupStatus(g){
+  const numSemGrupo = g.vals.filter(v=>v===0).length;
+  if(numSemGrupo === 3) return {c:'critico', t:'NÃO COMPROU NADA'};
+  if(numSemGrupo > 0) return {c:'critico', t:numSemGrupo+' MÊS'+(numSemGrupo>1?'ES':'')+' S/ VENDA'};
+  // grupo comprou em tudo — mas verifica filiais
+  const filiaisComProblema = g.filiais.filter(f => f.vals.some(v=>v===0)).length;
+  if(filiaisComProblema > 0) return {c:'risco', t:filiaisComProblema+' '+(filiaisComProblema>1?'FILIAIS':'FILIAL')+' S/ VENDA'};
+  return {c:'batida', t:'COMPROU TODOS'};
+}
+
+// Resumo de famílias (top 3 por última compra) de uma lista de famílias
+function famResumoHtml(familias, months){
+  const fr = (familias||[])
+    .map(f => { let u=0,um=''; for(let k=2;k>=0;k--){if(f.vals[k]>0){u=f.vals[k];um=months[k];break;}} return {nome:f.nome,u,um}; })
+    .filter(f => f.u > 0).sort((a,b)=>b.u-a.u).slice(0,3);
+  return fr.length
+    ? fr.map(f => `<div style="font-size:9px;line-height:1.5;"><span style="color:#555;font-weight:600;">${f.nome}</span> — <span style="color:var(--orange);font-weight:700;">${R(f.u)}</span> <span style="color:#999;">(${f.um})</span></div>`).join('')
+    : '<span style="color:#bbb;font-size:9px;">Sem compras no período</span>';
+}
+
+// Toggle de expansão (grupo → filiais, filial → famílias)
+function toggleInativRow(type, id){
+  const rows = document.querySelectorAll(`[data-parent="${type}-${id}"]`);
+  const arrow = $(`arrow-${type}-${id}`);
+  let anyVisible = false;
+  rows.forEach(r => { if(r.style.display !== 'none') anyVisible = true; });
+  rows.forEach(r => {
+    r.style.display = anyVisible ? 'none' : '';
+    // ao recolher, também esconde filhos (famílias de filiais)
+    if(anyVisible && r.dataset.self){
+      document.querySelectorAll(`[data-parent="${r.dataset.self}"]`).forEach(c => c.style.display = 'none');
+      const ca = $('arrow-'+r.dataset.self);
+      if(ca) ca.textContent = '▶';
+    }
+  });
+  if(arrow) arrow.textContent = anyVisible ? '▶' : '▼';
+}
+
+function applyInativFilter(){
+  if(!INATIV_DATA.grupos.length) return;
+  const tbody = $('inativ-tbody');
+  tbody.innerHTML = '';
+  const months = INATIV_DATA.months;
+
+  const filtered = getFilteredInativGrupos();
+
+  // KPI: grupos com ao menos 1 mês sem venda (grupo OU alguma filial)
+  const semVendaCount = INATIV_DATA.grupos.filter(g =>
+    [0,1,2].some(k => gGrupoTemSemVenda(g, k))).length;
+  sv('inativ-total', semVendaCount.toString());
+
+  if(filtered.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">Nenhum grupo neste filtro</td></tr>';
+    return;
+  }
+
+  // Ordena: quem tem mais "sem venda" (grupo + filiais) primeiro
+  const peso = g => [0,1,2].reduce((s,k)=> s + (g.vals[k]===0?3:0) + nFiliaisSemVenda(g,k), 0);
+  filtered.sort((a,b) => peso(b) - peso(a));
+
+  // helper: linha de família (nível folha)
+  const famRowsHtml = (familias, parentId, padLeft) => {
+    const famCell = v => v===0
+      ? '<td style="color:#C0392B;font-weight:700;text-align:center;font-size:9px;">—</td>'
+      : `<td style="color:#555;font-weight:600;text-align:right;font-size:9px;">${R(v)}</td>`;
+    return [...familias]
+      .sort((a,b)=>(b.vals[0]+b.vals[1]+b.vals[2])-(a.vals[0]+a.vals[1]+a.vals[2]))
+      .map(fam => {
+        const [am1,am2,am3] = fam.vals;
+        return `<tr data-parent="${parentId}" style="display:none;background:#fff;">
+          <td style="padding-left:${padLeft}px;color:#777;font-size:10px;">• ${fam.nome}</td>
+          ${famCell(am1)}${famCell(am2)}${famCell(am3)}
+          <td colspan="3" style="font-size:9px;color:#aaa;">família / produto</td>
+        </tr>`;
+      }).join('');
+  };
+
+  // sempre inicia fechado — o usuário abre clicando no grupo
+  const autoExpand = false;
+
+  let html = '';
+  filtered.forEach((g, gi) => {
+    // "meses sem venda" do grupo: mês onde grupo=0 (grupo todo) ou filial=0 (parcial)
+    const semMeses = [];
+    [0,1,2].forEach(k => {
+      if(g.vals[k] === 0) semMeses.push(months[k]);
+      else if(nFiliaisSemVenda(g, k) > 0) semMeses.push(months[k]+' (filial)');
+    });
+    const st = inativGroupStatus(g);
+    const multiFilial = g.filiais.length > 1;
+    // grupo é clicável se tem 2+ filiais OU 1 filial com famílias
+    const filialUnica = g.filiais.length === 1 ? g.filiais[0] : null;
+    const clicavel = multiFilial || (filialUnica && filialUnica.familias.length > 0);
+
+    // ── LINHA DO GRUPO (nível 1) ──
+    html += `
+      <tr style="background:#FFF3EC;cursor:${clicavel?'pointer':'default'};border-top:2px solid var(--orange);" ${clicavel?`onclick="toggleInativRow('g','${gi}')"`:''}>
+        <td style="font-weight:800;color:var(--dark);font-size:12px;">
+          ${clicavel?`<span id="arrow-g-${gi}" style="color:var(--orange);font-size:11px;margin-right:6px;">${autoExpand?'▼':'▶'}</span>`:'<span style="margin-right:18px;"></span>'}
+          ${g.nome}
+          ${multiFilial?`<span style="font-size:9px;color:#999;font-weight:600;margin-left:6px;">(${g.filiais.length} filiais)</span>`:''}
+        </td>
+        ${inativGroupCell(g,0)}${inativGroupCell(g,1)}${inativGroupCell(g,2)}
+        <td style="font-weight:700;color:#C0392B;font-size:10px">${semMeses.length ? semMeses.join(', ') : '<span style="color:#1E7E34">Nenhum</span>'}</td>
+        <td style="text-align:left;padding:8px 10px;">${famResumoHtml(g.filiais.flatMap(f=>f.familias), months)}</td>
+        <td><span class="badge ${st.c}">${st.t}</span></td>
+      </tr>`;
+
+    if(multiFilial){
+      // ── NÍVEL 2: FILIAIS — cada uma abre suas famílias ──
+      g.filiais.forEach((f, fi) => {
+        const selfId = `f-${gi}-${fi}`;
+        const [fm1,fm2,fm3] = f.vals;
+        const fSem = [];
+        if(fm1===0) fSem.push(months[0]);
+        if(fm2===0) fSem.push(months[1]);
+        if(fm3===0) fSem.push(months[2]);
+        const fSt = inativStatus(f.vals);
+        const temFam = f.familias.length > 0;
+        const filialSemVenda = fSem.length > 0;
+        // realce a filial que não comprou
+        const bgFilial = filialSemVenda ? '#FDECEA' : '#FAFAFA';
+        const nomeCor = filialSemVenda ? '#C0392B' : '#444';
+        html += `
+          <tr data-parent="g-${gi}" data-self="${selfId}" style="display:${autoExpand?'':'none'};background:${bgFilial};cursor:${temFam?'pointer':'default'};" ${temFam?`onclick="toggleInativRow('f','${gi}-${fi}')"`:''}>
+            <td style="padding-left:34px;font-weight:700;color:${nomeCor};font-size:11px;">
+              ${temFam?`<span id="arrow-f-${gi}-${fi}" style="color:#888;font-size:10px;margin-right:6px;">▶</span>`:'<span style="margin-right:16px;"></span>'}
+              ↳ ${f.nome}${filialSemVenda?' 🔴':''}
+            </td>
+            ${inativCellHtml(fm1)}${inativCellHtml(fm2)}${inativCellHtml(fm3)}
+            <td style="font-weight:700;color:#C0392B;font-size:9px">${fSem.length ? fSem.join(', ') : '<span style="color:#1E7E34">Nenhum</span>'}</td>
+            <td style="text-align:left;padding:8px 10px;">${famResumoHtml(f.familias, months)}</td>
+            <td><span class="badge ${fSt.c}" style="font-size:8px;">${fSt.t}</span></td>
+          </tr>`;
+        html += famRowsHtml(f.familias, selfId, 56);
+      });
+    } else if(filialUnica && filialUnica.familias.length){
+      // ── 1 FILIAL: grupo abre DIRETO nas famílias (nível folha) ──
+      html += famRowsHtml(filialUnica.familias, `g-${gi}`, 44);
+    }
+  });
+
+  tbody.innerHTML = html;
+}
+
+function clearInativImport(){
+  INATIV_DATA = {months:[], grupos:[]};
+  $('inativ-file-input').value = '';
+  $('inativ-search').value = '';
+  $('inativ-months-filter').value = '';
+  document.querySelectorAll('.col-filter').forEach(sel => sel.value = '');
+  $('inativ-import-status').textContent = '';
+  $('inativ-import-area').style.display = 'block';
+  $('inativ-results').style.display = 'none';
+  sv('inativ-total', '—');
+}
+
+// Imprime um HTML completo usando um iframe oculto (não depende de pop-up).
+// Funciona em navegador normal e em prévias sandbox onde window.open é bloqueado.
+function printViaIframe(html){
+  const old = document.getElementById('__print_frame__');
+  if(old) old.remove();
+
+  const iframe = document.createElement('iframe');
+  iframe.id = '__print_frame__';
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+  document.body.appendChild(iframe);
+
+  let printed = false;
+  const doPrint = () => {
+    if(printed) return; printed = true;
+    try{
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }catch(e){
+      // Fallback: tenta abrir em nova aba se o iframe falhar
+      try{
+        const w = window.open('', '_blank');
+        if(w){ w.document.write(html); w.document.close(); w.onload = () => w.print(); }
+        else alert('Não foi possível abrir a impressão. Verifique o bloqueador de pop-ups.');
+      }catch(_){ alert('Não foi possível imprimir neste contexto. Baixe o arquivo e abra no navegador.'); }
+    }
+  };
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  // onload cobre a maioria dos casos; timeout é garantia extra
+  iframe.onload = doPrint;
+  setTimeout(doPrint, 600);
+}
+
+function exportInativPDF(){
+  if(!INATIV_DATA.grupos.length){
+    alert('Importe uma planilha primeiro.');
+    return;
+  }
+  const filtered = getFilteredInativGrupos();
+  const months = INATIV_DATA.months;
+
+  filtered.sort((a,b) => b.vals.filter(v=>v===0).length - a.vals.filter(v=>v===0).length);
+
+  const cS = v => v===0 ? 'color:#C0392B;font-weight:800;text-align:right' : 'text-align:right';
+  const semMesesTxt = vals => {
+    const s=[]; if(vals[0]===0)s.push(months[0]); if(vals[1]===0)s.push(months[1]); if(vals[2]===0)s.push(months[2]);
+    return s.join(', ')||'Nenhum';
+  };
+  const famTxt = familias => {
+    const fr = (familias||[]).map(f=>{let u=0,um='';for(let k=2;k>=0;k--){if(f.vals[k]>0){u=f.vals[k];um=months[k];break;}}return {nome:f.nome,u,um};})
+      .filter(f=>f.u>0).sort((a,b)=>b.u-a.u).slice(0,3);
+    return fr.length ? fr.map(f=>`${f.nome} (R$ ${fmtN(f.u)})`).join('<br>') : '—';
+  };
+
+  const linhas = filtered.length
+    ? filtered.map(g => {
+        const [m1,m2,m3] = g.vals;
+        // Linha do grupo (destaque)
+        let rowsHtml = `<tr style="background:#FFF3EC">
+          <td style="font-weight:800">${g.nome} ${g.filiais.length>1?'('+g.filiais.length+' filiais)':''}</td>
+          <td style="${cS(m1)}">${m1===0?'NÃO':'R$ '+fmtN(m1)}</td>
+          <td style="${cS(m2)}">${m2===0?'NÃO':'R$ '+fmtN(m2)}</td>
+          <td style="${cS(m3)}">${m3===0?'NÃO':'R$ '+fmtN(m3)}</td>
+          <td style="color:#C0392B;font-weight:700;font-size:8px">${semMesesTxt(g.vals)}</td>
+          <td style="font-size:8px">${famTxt(g.filiais.flatMap(f=>f.familias))}</td>
+        </tr>`;
+        // Filiais (se houver mais de 1)
+        if(g.filiais.length > 1){
+          g.filiais.forEach(f => {
+            const [fm1,fm2,fm3] = f.vals;
+            rowsHtml += `<tr>
+              <td style="padding-left:22px;color:#555;font-size:8px">↳ ${f.nome}</td>
+              <td style="${cS(fm1)};font-size:8px">${fm1===0?'NÃO':'R$ '+fmtN(fm1)}</td>
+              <td style="${cS(fm2)};font-size:8px">${fm2===0?'NÃO':'R$ '+fmtN(fm2)}</td>
+              <td style="${cS(fm3)};font-size:8px">${fm3===0?'NÃO':'R$ '+fmtN(fm3)}</td>
+              <td style="color:#C0392B;font-size:7px">${semMesesTxt(f.vals)}</td>
+              <td style="font-size:7px">${famTxt(f.familias)}</td>
+            </tr>`;
+          });
+        }
+        return rowsHtml;
+      }).join('')
+    : '<tr><td colspan="6" style="text-align:center;color:#999;padding:10px">Nenhum cliente</td></tr>';
+
+  const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>Clientes Sem Vendas — Riosulense</title>
+<style>
+  @page{size:A4 landscape;margin:10mm}
+  *{box-sizing:border-box}
+  body{font-family:'Segoe UI',Arial,sans-serif;color:#1C1C1C;margin:0;background:#f0f0f0;padding:16px}
+  .folha{max-width:1100px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+  .cab{background:#FE5000;color:#fff;padding:11px 14px;border-radius:6px;margin-bottom:16px}
+  .cab h1{margin:0;font-size:15px;letter-spacing:.5px}
+  .cab p{margin:3px 0 0;font-size:9px;opacity:.9}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px}
+  td{padding:5px 8px;font-size:9px;border-bottom:1px solid #eee;line-height:1.4;vertical-align:top}
+  tr.cabtab td{background:#1C1C1C;color:#fff;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;padding:6px 8px}
+  @media print{body{background:#fff;padding:0}.folha{max-width:none;box-shadow:none}tr.cabtab td{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cab{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
+<div class="folha">
+  <div class="cab">
+    <h1>🔴 CLIENTES SEM VENDAS — RIOSULENSE</h1>
+    <p><strong>Representante: ${($('inativ-rep-name')||{}).textContent || 'Todos os Representantes'}</strong> • Análise de Grandes Contas • Período: ${months.join(' · ')} • ${filtered.length} grupo(s) • Emitido em ${new Date().toLocaleString('pt-BR')}</p>
+  </div>
+  <table>
+    <tr class="cabtab">
+      <td>Cliente</td>
+      <td style="text-align:right">${months[0]}</td>
+      <td style="text-align:right">${months[1]}</td>
+      <td style="text-align:right">${months[2]}</td>
+      <td>Meses Sem Venda</td>
+      <td>Principais Famílias (última compra)</td>
+    </tr>
+    ${linhas}
+  </table>
+  <div style="margin-top:16px;font-size:8px;color:#999;text-align:center">Dashboard RIOSULENSE — documento gerado automaticamente</div>
+</div>
+</body></html>`;
+
+  printViaIframe(html);
+}
 
 // ── GET MÊS VIGENTE ────────────────────────────────────────
 // Retorna o mês atual no formato YYYY-MM
