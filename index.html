@@ -630,10 +630,15 @@
   <div class="modal-content" style="max-width:560px;">
     <div class="modal-header"><span>🔗 Link para Compartilhar</span><button class="modal-close" onclick="fecharLinkModal()">✕</button></div>
     <div class="modal-body">
-      <p style="font-size:12px;color:#555;line-height:1.6;margin:0;">Este link carrega uma <strong>cópia dos dados atuais</strong>. Quem abrir vê exatamente o que você salvou agora, em modo visualização. Para atualizar, gere um link novo depois de alterar os dados.</p>
-      <textarea id="share-link-text" readonly style="width:100%;height:80px;padding:10px;border:2px solid #E0E0E0;border-radius:8px;font-size:11px;resize:none;box-sizing:border-box;font-family:monospace;color:#333;"></textarea>
-      <div id="share-link-size" style="font-size:10px;color:#999;"></div>
+      <div style="background:#FFF3EC;border:2px solid var(--orange);border-radius:10px;padding:16px;text-align:center;">
+        <div style="font-size:9px;font-weight:700;letter-spacing:1px;color:#999;text-transform:uppercase;">Compartilhando dados de</div>
+        <div id="share-rep-name" style="font-size:16px;font-weight:900;color:var(--orange);margin-top:4px;">—</div>
+      </div>
+      <p style="font-size:12px;color:#555;line-height:1.6;margin:0;">Toque em <strong>Copiar Link</strong> e cole no WhatsApp ou e-mail. Quem abrir vê os dados em <strong>modo visualização</strong>. Para atualizar, gere um link novo depois de alterar os dados.</p>
       <button class="btn-modal-save" onclick="copiarLink()" style="background:var(--orange);"><span id="copy-btn-text">📋 Copiar Link</span></button>
+      <div id="share-link-size" style="font-size:10px;color:#999;text-align:center;"></div>
+      <div id="share-toggle-link" onclick="toggleShareLink()" style="font-size:10px;color:#888;cursor:pointer;text-align:center;user-select:none;">▸ ver o link</div>
+      <textarea id="share-link-text" readonly style="display:none;width:100%;height:70px;padding:10px;border:2px solid #E0E0E0;border-radius:8px;font-size:10px;resize:none;box-sizing:border-box;font-family:monospace;color:#333;"></textarea>
     </div>
   </div>
 </div>
@@ -828,6 +833,15 @@
     </div>
   </div>
 
+  <!-- MENSAGEM: selecione um representante -->
+  <div id="inativ-multi-msg" style="display:none;background:white;border:3px dashed #999;border-radius:12px;padding:36px 24px;text-align:center;margin-bottom:24px;box-shadow:0 2px 10px rgba(0,0,0,.06);">
+    <div style="font-size:44px;margin-bottom:10px;">👤</div>
+    <h3 style="font-size:16px;font-weight:900;color:var(--dark);margin-bottom:6px;">Selecione um representante</h3>
+    <p style="font-size:12px;color:#777;line-height:1.6;max-width:460px;margin:0 auto;">
+      No filtro <strong>"Filtrar por Representante"</strong> (topo), escolha <strong>um único representante</strong> para ver ou importar a análise de grandes contas dele.
+    </p>
+  </div>
+
   <!-- ÁREA DE IMPORTAÇÃO -->
   <div id="inativ-import-area" style="background:white;border:3px dashed var(--orange);border-radius:12px;padding:36px 24px;text-align:center;margin-bottom:24px;box-shadow:0 2px 10px rgba(0,0,0,.06);">
     <div style="font-size:48px;margin-bottom:12px;">📥</div>
@@ -943,8 +957,8 @@ let BASE = [
   {name:"ATIVA REPRESENTAÇÕES", meta:1342600, real:162153, prev:1621386, car:9233},
   {name:"RBR REPRESENTAÇÕES",    meta:650000,  real:317236, prev:410527, car:43291},
   {name:"IG REPRESENTAÇÕES",     meta:1697344, real:381065, prev:1838933, car:14868},
-  {name:"EMPROL AM",             meta:573269,  real:522491, prev:939805, car:107314},
-  {name:"EMPROL (AP e PA)",      meta:529166,  real:207084, prev:330125, car:23041},
+  {name:"PEREIRA MEDINA AM",             meta:573269,  real:522491, prev:939805, car:107314},
+  {name:"PEREIRA MEDINA (AP e PA)",      meta:529166,  real:207084, prev:330125, car:23041},
 ];
 
 // Cópia imutável dos valores originais de BASE (para restaurar quando muda de mês)
@@ -971,8 +985,8 @@ const TRIMESTRES = {
       {name:"ATIVA REPRESENTAÇÕES", metaTrim:4247246.51, m1:177167.43, m2:0, m3:0},
       {name:"RBR REPRESENTAÇÕES",    metaTrim:2777594.86, m1:140802.45, m2:0, m3:0},
       {name:"IG REPRESENTAÇÕES",     metaTrim:4412563.87, m1:142165.59, m2:0, m3:0},
-      {name:"EMPROL AM",                metaTrim:3786418.07, m1:116391.55, m2:0, m3:0},
-      {name:"EMPROL (AP e PA)",           metaTrim:1445756.12, m1:68179.59,  m2:0, m3:0},
+      {name:"PEREIRA MEDINA AM",                metaTrim:3786418.07, m1:116391.55, m2:0, m3:0},
+      {name:"PEREIRA MEDINA (AP e PA)",           metaTrim:1445756.12, m1:68179.59,  m2:0, m3:0},
     ]
   },
   2: { // 2º Tri (Abr, Mai, Jun)
@@ -985,8 +999,8 @@ const TRIMESTRES = {
       {name:"ATIVA REPRESENTAÇÕES", metaTrim:4247246.51, m1:0, m2:0, m3:0},
       {name:"RBR REPRESENTAÇÕES",    metaTrim:2777594.86, m1:0, m2:0, m3:0},
       {name:"IG REPRESENTAÇÕES",     metaTrim:4412563.87, m1:0, m2:0, m3:0},
-      {name:"EMPROL AM",                metaTrim:3786418.07, m1:0, m2:0, m3:0},
-      {name:"EMPROL (AP e PA)",           metaTrim:1445756.12, m1:0, m2:0, m3:0},
+      {name:"PEREIRA MEDINA AM",                metaTrim:3786418.07, m1:0, m2:0, m3:0},
+      {name:"PEREIRA MEDINA (AP e PA)",           metaTrim:1445756.12, m1:0, m2:0, m3:0},
     ]
   },
   3: { // 3º Tri (Jul, Ago, Set)
@@ -999,8 +1013,8 @@ const TRIMESTRES = {
       {name:"ATIVA REPRESENTAÇÕES", metaTrim:4247246.51, m1:0, m2:1342600, m3:0},
       {name:"RBR REPRESENTAÇÕES",    metaTrim:2777594.86, m1:0, m2:650000, m3:0},
       {name:"IG REPRESENTAÇÕES",     metaTrim:4412563.87, m1:0, m2:1697344, m3:0},
-      {name:"EMPROL AM",                metaTrim:3786418.07, m1:0, m2:573269, m3:0},
-      {name:"EMPROL (AP e PA)",           metaTrim:1445756.12, m1:0, m2:529166, m3:0},
+      {name:"PEREIRA MEDINA AM",                metaTrim:3786418.07, m1:0, m2:573269, m3:0},
+      {name:"PEREIRA MEDINA (AP e PA)",           metaTrim:1445756.12, m1:0, m2:529166, m3:0},
     ]
   },
   4: { // 4º Tri (Out, Nov, Dez)
@@ -1013,8 +1027,8 @@ const TRIMESTRES = {
       {name:"ATIVA REPRESENTAÇÕES", metaTrim:4247246.51, m1:0, m2:0, m3:0},
       {name:"RBR REPRESENTAÇÕES",    metaTrim:2777594.86, m1:0, m2:0, m3:0},
       {name:"IG REPRESENTAÇÕES",     metaTrim:4412563.87, m1:0, m2:0, m3:0},
-      {name:"EMPROL AM",                metaTrim:3786418.07, m1:0, m2:0, m3:0},
-      {name:"EMPROL (AP e PA)",           metaTrim:1445756.12, m1:0, m2:0, m3:0},
+      {name:"PEREIRA MEDINA AM",                metaTrim:3786418.07, m1:0, m2:0, m3:0},
+      {name:"PEREIRA MEDINA (AP e PA)",           metaTrim:1445756.12, m1:0, m2:0, m3:0},
     ]
   }
 };
@@ -2105,6 +2119,9 @@ function applyFilter(){
   // Atualiza texto do filtro
   updateFilterText();
 
+  // Atualiza a análise de Clientes Inativos conforme o representante
+  refreshInativForRep();
+
   // Atualiza todos os números com os valores atuais dos inputs
   recalc();
   recalcTrim();
@@ -2234,6 +2251,61 @@ let INATIV_DATA = {
   months: [],       // ex: ['Jun./26','Jul./26','Ago./26']
   grupos: []        // [{nome, vals:[v1,v2,v3], filiais:[{nome, vals, familias:[{nome, vals}]}]}]
 };
+// Cada representante tem sua própria análise importada
+let INATIV_BY_REP = {};  // { 'IG REPRESENTAÇÕES': {months, grupos}, ... }
+
+// Retorna o representante único selecionado no filtro do topo, ou null (Todos/vários)
+function currentInativRep(){
+  const cbs = document.querySelectorAll('.rep-checkbox');
+  const sel = Array.from(cbs).filter(cb => cb.checked);
+  if(sel.length === 1) return BASE[parseInt(sel[0].dataset.idx)].name;
+  return null;
+}
+
+// Salva/carrega a análise por representante no navegador
+function saveInativByRep(){
+  try{ localStorage.setItem('riosulense_inativ_byrep', JSON.stringify(INATIV_BY_REP)); }catch(e){}
+}
+function loadInativByRep(){
+  try{
+    const raw = localStorage.getItem('riosulense_inativ_byrep');
+    if(raw) INATIV_BY_REP = JSON.parse(raw) || {};
+  }catch(e){ INATIV_BY_REP = {}; }
+}
+
+// Troca a análise exibida conforme o representante selecionado no topo
+function refreshInativForRep(){
+  const rep = currentInativRep();
+  const importArea = $('inativ-import-area');
+  const results = $('inativ-results');
+  const msg = $('inativ-multi-msg');
+  if(!importArea || !results) return;
+
+  if(!rep){
+    // Todos ou vários selecionados → pede um único representante
+    INATIV_DATA = {months:[], grupos:[]};
+    importArea.style.display = 'none';
+    results.style.display = 'none';
+    if(msg) msg.style.display = 'block';
+    sv('inativ-total', '—');
+    return;
+  }
+  if(msg) msg.style.display = 'none';
+
+  const data = INATIV_BY_REP[rep];
+  if(data && data.grupos && data.grupos.length){
+    INATIV_DATA = data;
+    renderInativImported();
+  } else {
+    // Sem dados para esse representante → mostra área de importação
+    INATIV_DATA = {months:[], grupos:[]};
+    importArea.style.display = 'block';
+    results.style.display = 'none';
+    sv('inativ-total', '—');
+    const st = $('inativ-import-status');
+    if(st){ st.style.color='var(--dark)'; st.textContent = '📄 Importe a planilha de grandes contas de ' + rep; }
+  }
+}
 
 // ── VARIÁVEIS GLOBAIS ────────────────────────────────────────
 let _ready = false; // impede saveData de rodar antes do loadData
@@ -2252,6 +2324,15 @@ async function importInativExcel(event){
   statusEl.style.color = 'var(--dark)';
   statusEl.textContent = '⏳ Lendo planilha...';
 
+  // Precisa de UM representante selecionado para vincular a planilha a ele
+  const rep = currentInativRep();
+  if(!rep){
+    statusEl.style.color = '#C0392B';
+    statusEl.textContent = '⚠️ Selecione UM representante no filtro do topo antes de importar.';
+    event.target.value = '';
+    return;
+  }
+
   if(typeof JSZip === 'undefined'){
     statusEl.style.color = '#C0392B';
     statusEl.textContent = '❌ Biblioteca de leitura não carregou. Verifique sua conexão e recarregue a página.';
@@ -2269,12 +2350,15 @@ async function importInativExcel(event){
       return;
     }
 
+    // Vincula a análise ao representante selecionado
+    INATIV_BY_REP[rep] = parsed;
+    saveInativByRep();
     INATIV_DATA = parsed;
     renderInativImported();
 
     const nFiliais = parsed.grupos.reduce((s,g)=>s+g.filiais.length,0);
     statusEl.textContent = '';
-    showNotification(`✓ ${parsed.grupos.length} grupos · ${nFiliais} filiais importados!`);
+    showNotification(`✓ ${rep}: ${parsed.grupos.length} grupos · ${nFiliais} filiais!`);
   }catch(err){
     statusEl.style.color = '#C0392B';
     statusEl.textContent = '❌ Erro ao ler o arquivo: ' + err.message;
@@ -2615,6 +2699,9 @@ function applyInativFilter(){
 }
 
 function clearInativImport(){
+  // Remove a análise só do representante atual
+  const rep = currentInativRep();
+  if(rep){ delete INATIV_BY_REP[rep]; saveInativByRep(); }
   INATIV_DATA = {months:[], grupos:[]};
   $('inativ-file-input').value = '';
   $('inativ-search').value = '';
@@ -2647,7 +2734,7 @@ function gerarLinkCompartilhar(){
     ts: Date.now(),
     month: currentMonth,
     ls: ls,
-    inativ: (INATIV_DATA && INATIV_DATA.grupos && INATIV_DATA.grupos.length) ? INATIV_DATA : null
+    inativByRep: (INATIV_BY_REP && Object.keys(INATIV_BY_REP).length) ? INATIV_BY_REP : null
   };
 
   let comp;
@@ -2659,10 +2746,23 @@ function gerarLinkCompartilhar(){
 
   const ta = $('share-link-text');
   ta.value = link;
+  // Mostra só o nome do representante em destaque; link fica oculto
+  const rep = currentInativRep() || ($('filter-text') ? $('filter-text').textContent : 'Todos os Representantes');
+  const repEl = $('share-rep-name'); if(repEl) repEl.textContent = rep;
   const kb = Math.round(link.length/1024);
-  $('share-link-size').textContent = `Tamanho do link: ~${kb} KB${kb>60?' (muito grande p/ alguns apps — considere compartilhar sem a planilha de grandes contas)':''}`;
+  $('share-link-size').textContent = `Link pronto (~${kb} KB). Toque em Copiar e cole no WhatsApp/e-mail.`;
+  // esconde o link cru por padrão
+  ta.style.display = 'none';
+  const tgl = $('share-toggle-link'); if(tgl) tgl.textContent = '▸ ver o link';
   $('modal-share').classList.add('show');
-  setTimeout(()=>{ ta.focus(); ta.select(); }, 100);
+}
+
+// Mostra/oculta o texto cru do link no modal
+function toggleShareLink(){
+  const ta = $('share-link-text');
+  const tgl = $('share-toggle-link');
+  if(ta.style.display === 'none'){ ta.style.display='block'; if(tgl) tgl.textContent='▾ ocultar o link'; ta.focus(); ta.select(); }
+  else { ta.style.display='none'; if(tgl) tgl.textContent='▸ ver o link'; }
 }
 
 function fecharLinkModal(){ $('modal-share').classList.remove('show'); }
@@ -2695,7 +2795,8 @@ function carregarLinkCompartilhado(){
       Object.keys(payload.ls).forEach(k => { try{ localStorage.setItem(k, payload.ls[k]); }catch(e){} });
     }
     if(payload.month) currentMonth = payload.month;
-    if(payload.inativ) INATIV_DATA = payload.inativ;
+    if(payload.inativByRep) INATIV_BY_REP = payload.inativByRep;
+    else if(payload.inativ) INATIV_BY_REP = {}; // compat versão antiga (ignora)
 
     window.__sharedView = true;
     window.__sharedTs = payload.ts || null;
@@ -2719,10 +2820,8 @@ function aplicarModoVisualizacao(){
   // Esconde botões de edição/reset/gerar-link e o botão + de clientes
   ['btn-share'].forEach(id => { const b=$(id); if(b) b.style.display='none'; });
   document.querySelectorAll('.reset-btn, .prev-btn-add').forEach(b => b.style.display='none');
-  // Renderiza a análise de inatividade se veio no link
-  if(INATIV_DATA && INATIV_DATA.grupos && INATIV_DATA.grupos.length){
-    renderInativImported();
-  }
+  // Renderiza a análise de inatividade do representante atual (se houver)
+  refreshInativForRep();
 }
 
 // Imprime um HTML completo usando um iframe oculto (não depende de pop-up).
@@ -2932,6 +3031,7 @@ function initDashboard() {
   // 3. Continua inicialização
   setAutoDate();
   loadClientsData();    // carrega dados salvos de clientes da previsão
+  if(!shared) loadInativByRep();  // carrega análise de grandes contas por representante
   buildFilter();        // cria os checkboxes do dropdown
   renderEditTable();    // cria inputs com valores BASE (saveData bloqueado: _ready=false)
   renderTrimTable();    // idem
@@ -2939,6 +3039,7 @@ function initDashboard() {
   loadDataTrim();       // restaura os valores do trimestre selecionado
   _ready = true;        // a partir daqui, saveData() pode gravar normalmente
   updateFilterText();   // atualiza o texto do filtro
+  refreshInativForRep();// mostra a análise do representante atual
   recalc();             // recalcula com valores restaurados + renderiza dashboard
   recalcTrim();
 
