@@ -3161,6 +3161,9 @@ function aplicarModoVisualizacao(){
       if(opt){ selMes.value = opt.value; }
     }
     const mn = document.getElementById('inativ-mes-nome'); if(mn) mn.textContent = window.__mesNome;
+    // Sincroniza o cabeçalho com o mês compartilhado (senão mostra o mês de hoje).
+    const hm = document.getElementById('hdr-month');   if(hm) hm.textContent = window.__mesNome;
+    const fd = document.getElementById('footer-date'); if(fd) fd.textContent = window.__mesNome;
   }
   if(window.__resMes){
     const set = (id,val) => { const e=document.getElementById(id); if(e && val) e.textContent = val; };
