@@ -852,7 +852,7 @@
   <!-- SELETOR DE REPRESENTANTE (aba) — vem dos dados importados -->
   <div id="inativ-rep-bar" style="display:none;align-items:center;gap:12px;background:white;border-radius:10px;padding:12px 18px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);flex-wrap:wrap;">
     <span style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;">👤 Ver representante:</span>
-    <select id="inativ-rep-select" onchange="refreshInativForRep()" style="padding:8px 14px;border:2px solid var(--orange);border-radius:7px;font-size:12px;font-weight:700;color:var(--dark);background:#FFF8F5;cursor:pointer;min-width:240px;">
+    <select id="inativ-rep-select" onchange="onInativRepChange()" style="padding:8px 14px;border:2px solid var(--orange);border-radius:7px;font-size:12px;font-weight:700;color:var(--dark);background:#FFF8F5;cursor:pointer;min-width:240px;">
       <option value="">Todos os Representantes</option>
     </select>
     <button class="pdf-btn" onclick="gerarLinkPorRep()" style="margin:0;background:#1E7E34;font-size:11px;padding:8px 16px;">
@@ -2140,6 +2140,8 @@ function applyFilter(){
   // Atualiza todos os números com os valores atuais dos inputs
   recalc();
   recalcTrim();
+  // Espelha a seleção no seletor "Ver representante" da aba Clientes Inativos
+  syncInativFromFilter();
 }
 
 function bdg(p){ return p>=1?{c:'batida',t:'META BATIDA'}:p>=0.8?{c:'risco',t:'EM RISCO'}:{c:'critico',t:'CRÍTICO'}; }
@@ -2416,6 +2418,57 @@ function rebuildInativRepSelect(){
   sel.innerHTML = '<option value="">Todos os Representantes</option>' +
     reps.map(r => `<option value="${r}">${r}</option>`).join('');
   if(prev && reps.includes(prev)) sel.value = prev;
+}
+
+// ══════════ SINCRONIA DOS DOIS SELETORES DE REPRESENTANTE ══════════
+// (1) filtro do topo "Filtrar por Representante"  ↔  (2) "Ver representante" da aba.
+// Mudar um muda o outro; "Todos" num deixa "Todos" no outro.
+let __syncingReps = false;
+// Marca (primeira palavra) do nome do rep, p/ casar as duas listas com nomes diferentes
+// ex.: "ATIVA REPRESENTAÇÕES" ~ "ATIVA" ; "IG REPRESENTAÇÕES" ~ "IG REPRESENTACOES COMERCIAIS"
+function repBrandKey(name){
+  return String(name||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toUpperCase().replace(/[^A-Z0-9 ]/g,' ').trim().split(/\s+/)[0] || '';
+}
+// Mudou o seletor "Ver representante" (aba) → espelha no filtro do topo e recalcula
+function onInativRepChange(){
+  if(!__syncingReps){
+    __syncingReps = true;
+    const rep = ($('inativ-rep-select')||{}).value || '';
+    const cbs = Array.from(document.querySelectorAll('.rep-checkbox'));
+    if(cbs.length){
+      if(!rep){ cbs.forEach(cb => cb.checked = true); }        // Todos
+      else {
+        const key = repBrandKey(rep);
+        const anyMatch = cbs.some(cb => repBrandKey(BASE[+cb.dataset.idx].name) === key);
+        cbs.forEach(cb => { cb.checked = anyMatch ? (repBrandKey(BASE[+cb.dataset.idx].name) === key) : true; });
+      }
+      applyFilter();   // atualiza dashboard + Resultado do Mês (guardado contra loop)
+    }
+    __syncingReps = false;
+  }
+  refreshInativForRep();
+}
+// Mudou o filtro do topo → espelha no seletor "Ver representante" da aba
+function syncInativFromFilter(){
+  if(__syncingReps) return;
+  const sel = $('inativ-rep-select'); if(!sel) return;
+  const cbs = Array.from(document.querySelectorAll('.rep-checkbox'));
+  if(!cbs.length) return;
+  const checked = cbs.filter(cb => cb.checked);
+  const allChecked = checked.length === cbs.length;
+  const brands = Array.from(new Set(checked.map(cb => repBrandKey(BASE[+cb.dataset.idx].name))));
+  let val = '';
+  if(!allChecked && brands.length === 1){
+    const match = Object.keys(INATIV_BY_REP).find(r => repBrandKey(r) === brands[0]);
+    val = match || '';
+  }
+  if(sel.value !== val){
+    __syncingReps = true;
+    sel.value = val;
+    refreshInativForRep();
+    __syncingReps = false;
+  }
 }
 
 // Troca a análise exibida conforme o representante escolhido NO SELETOR DA ABA
