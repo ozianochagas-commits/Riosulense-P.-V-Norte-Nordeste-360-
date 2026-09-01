@@ -2952,6 +2952,8 @@ function gerarLinkPorRep(){
 function mostrarLinkModal(link, repLabel){
   const ta = $('share-link-text');
   ta.value = link;
+  window.__shareLink = link;
+  window.__shareRepLabel = repLabel || '';
   const repEl = $('share-rep-name'); if(repEl) repEl.textContent = repLabel || '—';
   const kb = Math.round(link.length/1024);
   $('share-link-size').textContent = `Link pronto (~${kb} KB). Toque em Copiar e cole no WhatsApp/e-mail.`;
@@ -2971,12 +2973,20 @@ function toggleShareLink(){
 function fecharLinkModal(){ $('modal-share').classList.remove('show'); }
 
 function copiarLink(){
-  const ta = $('share-link-text');
-  ta.select(); ta.setSelectionRange(0, 999999);
+  const link = window.__shareLink || $('share-link-text').value;
+  const rep = window.__shareRepLabel || '';
+  // Mensagem com o nome do representante em destaque + o link
+  const texto = rep
+    ? `📊 *Clientes Sem Vendas — ${rep}*\n(Riosulense · Análise de Grandes Contas)\n\n👉 ${link}`
+    : link;
   const done = () => { const b=$('copy-btn-text'); if(b){ b.textContent='✓ Copiado!'; setTimeout(()=>b.textContent='📋 Copiar Link',2000);} };
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ try{document.execCommand('copy');done();}catch(e){} });
+    navigator.clipboard.writeText(texto).then(done).catch(()=>{
+      const ta=$('share-link-text'); ta.value=texto; ta.style.display='block'; ta.select();
+      try{document.execCommand('copy');done();}catch(e){}
+    });
   } else {
+    const ta=$('share-link-text'); ta.value=texto; ta.style.display='block'; ta.select();
     try{ document.execCommand('copy'); done(); }catch(e){ alert('Selecione o texto e copie manualmente.'); }
   }
 }
