@@ -2888,23 +2888,36 @@ function clearInativImport(){
 }
 
 // ══════════ COMPARTILHAR VIA LINK ══════════
-// Enxuga os dados do compartilhamento (mantém só as maiores famílias por filial)
+// Enxuga os dados do compartilhamento p/ o link ficar o menor possível:
+//   • mantém só as 3 maiores famílias por filial (as principais)
+//   • arredonda os valores para inteiro (sem centavos) → link ~25% menor, sem perder info útil
 function minifyForShare(payload){
   const p = JSON.parse(JSON.stringify(payload));
+  const r = v => Math.round(v||0);
   if(p.inativByRep){
     Object.keys(p.inativByRep).forEach(rep => {
       (p.inativByRep[rep].grupos||[]).forEach(g => {
+        g.vals = (g.vals||[0,0,0]).map(r);
         (g.filiais||[]).forEach(f => {
-          if(f.familias && f.familias.length > 8){
+          f.vals = (f.vals||[0,0,0]).map(r);
+          if(f.familias && f.familias.length){
             f.familias = f.familias
               .sort((a,b)=>(b.vals[0]+b.vals[1]+b.vals[2])-(a.vals[0]+a.vals[1]+a.vals[2]))
-              .slice(0,8);
+              .slice(0,3)
+              .map(fa => ({nome: fa.nome, vals: (fa.vals||[0,0,0]).map(r)}));
           }
         });
       });
     });
   }
   return p;
+}
+
+// Monta o link com os dados embutidos (funciona SEMPRE, sem depender de internet/nuvem)
+function linkEmbutido(payload){
+  const base = location.origin + location.pathname;
+  const comp = LZString.compressToEncodedURIComponent(JSON.stringify(minifyForShare(payload)));
+  return base + '#d=' + comp;
 }
 
 // Tenta subir para a nuvem (link curto). Se falhar, embute no link (longo).
@@ -2963,8 +2976,12 @@ function gerarLinkPorRep(){
     inativByRep: { [rep]: dados },
     lockRep: rep, onlyInativ: true
   };
-  mostrarLinkGerando();
-  empacotarLink(payload, rep);
+  // Link INSTANTÂNEO com os dados embutidos — funciona sempre, sem depender de
+  // internet/nuvem (que às vezes falhava). Abre com SÓ a informação do rep escolhido.
+  try{
+    const link = linkEmbutido(payload);
+    mostrarLinkModal(link, rep, true);
+  }catch(e){ alert('Erro ao gerar o link.'); }
 }
 
 // Mostra o modal em estado "gerando..."
@@ -2982,8 +2999,8 @@ function mostrarLinkModal(link, repLabel, curto){
   window.__shareLink = link;
   window.__shareRepLabel = repLabel || '';
   const repEl = $('share-rep-name'); if(repEl) repEl.textContent = repLabel || '—';
-  $('share-link-size').textContent = curto
-    ? '✓ Link curto pronto! Toque em Copiar e cole no WhatsApp/e-mail.'
+  $('share-link-size').innerHTML = curto
+    ? '✓ Link pronto! Toque em <b>Copiar</b> e cole no WhatsApp.<br><span style="opacity:.75;font-size:11px;">No WhatsApp o link aparece encurtado com “Ler mais” — é só a exibição. Ao <b>tocar</b> nele, abre a página com as informações deste representante.</span>'
     : '⚠️ Sem internet para o link curto — gerado o link longo (reserva). Toque em Copiar.';
   ta.style.display = 'none';
   const tgl = $('share-toggle-link'); if(tgl) tgl.textContent = '▸ ver o link';
