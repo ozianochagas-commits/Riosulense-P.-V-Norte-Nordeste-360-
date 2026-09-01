@@ -2887,76 +2887,81 @@ function clearInativImport(){
   refreshInativForRep();
 }
 
-// ══════════ COMPARTILHAR VIA LINK (dados embutidos) ══════════
-// Gera um link com uma "foto" dos dados atuais. Quem abrir vê em modo visualização.
-function gerarLinkCompartilhar(){
-  if(typeof LZString === 'undefined'){
-    alert('A biblioteca de compressão não carregou. Verifique a conexão e recarregue a página.');
-    return;
-  }
-  // Salva o estado atual antes de empacotar
-  if(_ready){ try{ saveData(); saveDataTrim(); saveClientsData(); }catch(e){} }
+// ══════════ COMPARTILHAR VIA LINK ══════════
+// Tenta subir os dados para a nuvem (link curto). Se falhar, embute no link (longo).
+async function empacotarLink(payload, repLabel){
+  // 1) tenta link CURTO via nuvem (jsonblob, grátis, sem conta)
+  const base = location.origin + location.pathname;
+  try{
+    const resp = await fetch(JSONBLOB_API, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Accept':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    if(resp.ok){
+      const loc = resp.headers.get('Location') || '';
+      const id = loc.split('/').pop();
+      if(id){ mostrarLinkModal(base + '#b=' + id, repLabel, true); return; }
+    }
+  }catch(e){ /* sem internet ou serviço fora → usa reserva */ }
+  // 2) reserva: link longo com dados embutidos
+  try{
+    const comp = LZString.compressToEncodedURIComponent(JSON.stringify(payload));
+    mostrarLinkModal(base + '#d=' + comp, repLabel, false);
+  }catch(e){ alert('Erro ao gerar o link.'); }
+}
 
-  // Coleta tudo que está salvo (mensal, trimestre, clientes)
+function gerarLinkCompartilhar(){
+  if(typeof LZString === 'undefined'){ alert('A biblioteca de compressão não carregou. Recarregue a página.'); return; }
+  if(_ready){ try{ saveData(); saveDataTrim(); saveClientsData(); }catch(e){} }
   const ls = {};
   for(let i=0; i<localStorage.length; i++){
     const k = localStorage.key(i);
     if(k && k.indexOf('riosulense_') === 0) ls[k] = localStorage.getItem(k);
   }
   const payload = {
-    v: 1,
-    ts: Date.now(),
-    month: currentMonth,
-    ls: ls,
+    v: 1, ts: Date.now(), month: currentMonth, ls: ls,
     inativByRep: (INATIV_BY_REP && Object.keys(INATIV_BY_REP).length) ? INATIV_BY_REP : null
   };
-
-  let comp;
-  try{ comp = LZString.compressToEncodedURIComponent(JSON.stringify(payload)); }
-  catch(e){ alert('Erro ao gerar o link.'); return; }
-
-  const base = location.origin + location.pathname;
-  const link = base + '#d=' + comp;
-
-  mostrarLinkModal(link, 'Dashboard completo (todos)');
+  mostrarLinkGerando();
+  empacotarLink(payload, 'Dashboard completo (todos)');
 }
 
-// Gera link SÓ do representante selecionado na aba Clientes Inativos,
-// abrindo direto nessa aba e mostrando apenas os dados dele.
+// Gera link SÓ do representante selecionado na aba Clientes Inativos
 function gerarLinkPorRep(){
   if(typeof LZString === 'undefined'){ alert('A biblioteca de compressão não carregou. Recarregue a página.'); return; }
   const sel = $('inativ-rep-select');
   const rep = sel ? sel.value : '';
-  if(!rep){
-    alert('Escolha UM representante no seletor "Ver representante" antes de gerar o link individual.');
-    return;
-  }
+  if(!rep){ alert('Escolha UM representante no seletor "Ver representante" antes de gerar o link individual.'); return; }
   const dados = INATIV_BY_REP[rep];
   if(!dados || !dados.grupos || !dados.grupos.length){ alert('Sem dados para ' + rep + '.'); return; }
-
   const payload = {
-    v: 1,
-    ts: Date.now(),
-    inativByRep: { [rep]: dados },   // SÓ este representante
-    lockRep: rep,                    // trava o seletor neste rep
-    onlyInativ: true                 // abre só a aba Clientes Inativos
+    v: 1, ts: Date.now(),
+    inativByRep: { [rep]: dados },
+    lockRep: rep, onlyInativ: true
   };
-  let comp;
-  try{ comp = LZString.compressToEncodedURIComponent(JSON.stringify(payload)); }
-  catch(e){ alert('Erro ao gerar o link.'); return; }
-  const link = location.origin + location.pathname + '#d=' + comp;
-  mostrarLinkModal(link, rep);
+  mostrarLinkGerando();
+  empacotarLink(payload, rep);
 }
 
-// Preenche e abre o modal de link
-function mostrarLinkModal(link, repLabel){
+// Mostra o modal em estado "gerando..."
+function mostrarLinkGerando(){
+  const repEl = $('share-rep-name'); if(repEl) repEl.textContent = '⏳ Gerando link...';
+  $('share-link-size').textContent = 'Subindo os dados para a nuvem...';
+  const ta = $('share-link-text'); if(ta) ta.style.display='none';
+  $('modal-share').classList.add('show');
+}
+
+// Preenche e abre o modal de link. curto=true → link da nuvem (pequeno)
+function mostrarLinkModal(link, repLabel, curto){
   const ta = $('share-link-text');
   ta.value = link;
   window.__shareLink = link;
   window.__shareRepLabel = repLabel || '';
   const repEl = $('share-rep-name'); if(repEl) repEl.textContent = repLabel || '—';
-  const kb = Math.round(link.length/1024);
-  $('share-link-size').textContent = `Link pronto (~${kb} KB). Toque em Copiar e cole no WhatsApp/e-mail.`;
+  $('share-link-size').textContent = curto
+    ? '✓ Link curto pronto! Toque em Copiar e cole no WhatsApp/e-mail.'
+    : '⚠️ Sem internet para o link curto — gerado o link longo (reserva). Toque em Copiar.';
   ta.style.display = 'none';
   const tgl = $('share-toggle-link'); if(tgl) tgl.textContent = '▸ ver o link';
   $('modal-share').classList.add('show');
@@ -2991,31 +2996,46 @@ function copiarLink(){
   }
 }
 
-// Carrega dados de um link compartilhado (#d=...). Retorna true se havia dados.
-function carregarLinkCompartilhado(){
+// URL do serviço de nuvem (grátis, sem conta) para links curtos
+const JSONBLOB_API = 'https://jsonblob.com/api/jsonBlob';
+
+// Aplica um payload de link compartilhado nas variáveis globais
+function aplicarPayload(payload){
+  if(!payload) return false;
+  if(payload.ls){
+    Object.keys(payload.ls).forEach(k => { try{ localStorage.setItem(k, payload.ls[k]); }catch(e){} });
+  }
+  if(payload.month) currentMonth = payload.month;
+  if(payload.inativByRep) INATIV_BY_REP = payload.inativByRep;
+  else if(payload.inativ) INATIV_BY_REP = {}; // compat versão antiga
+  window.__sharedView = true;
+  window.__sharedTs = payload.ts || null;
+  window.__lockRep = payload.lockRep || null;
+  window.__onlyInativ = payload.onlyInativ || false;
+  return true;
+}
+
+// Carrega dados de um link compartilhado. Aceita:
+//   #b=<id>  → busca os dados na nuvem (link curto)
+//   #d=<...> → dados embutidos no próprio link (reserva)
+async function carregarLinkCompartilhado(){
   try{
     const h = location.hash || '';
-    if(h.indexOf('#d=') !== 0) return false;
-    if(typeof LZString === 'undefined') return false;
-    const comp = h.substring(3);
-    const json = LZString.decompressFromEncodedURIComponent(comp);
-    if(!json) return false;
-    const payload = JSON.parse(json);
-    if(!payload) return false;
-
-    // Restaura os dados salvos no armazenamento local (temporário, para exibir)
-    if(payload.ls){
-      Object.keys(payload.ls).forEach(k => { try{ localStorage.setItem(k, payload.ls[k]); }catch(e){} });
+    if(h.indexOf('#b=') === 0){
+      const id = h.substring(3);
+      try{
+        const resp = await fetch(JSONBLOB_API + '/' + id, {headers:{'Accept':'application/json'}});
+        if(resp.ok){ const payload = await resp.json(); return aplicarPayload(payload); }
+      }catch(e){}
+      return false;
     }
-    if(payload.month) currentMonth = payload.month;
-    if(payload.inativByRep) INATIV_BY_REP = payload.inativByRep;
-    else if(payload.inativ) INATIV_BY_REP = {}; // compat versão antiga (ignora)
-
-    window.__sharedView = true;
-    window.__sharedTs = payload.ts || null;
-    window.__lockRep = payload.lockRep || null;      // trava num representante
-    window.__onlyInativ = payload.onlyInativ || false; // abre só a aba Clientes Inativos
-    return true;
+    if(h.indexOf('#d=') === 0){
+      if(typeof LZString === 'undefined') return false;
+      const json = LZString.decompressFromEncodedURIComponent(h.substring(3));
+      if(!json) return false;
+      return aplicarPayload(JSON.parse(json));
+    }
+    return false;
   }catch(e){ return false; }
 }
 
@@ -3252,9 +3272,9 @@ function loadData(){
 // ══════════════════════════════════════════════════════════════
 // INIT COM GOOGLE SHEET
 // ══════════════════════════════════════════════════════════════
-function initDashboard() {
-  // 0. Verifica se a página foi aberta por um link compartilhado (#d=...)
-  const shared = carregarLinkCompartilhado();
+async function initDashboard() {
+  // 0. Verifica se a página foi aberta por um link compartilhado (#b= ou #d=)
+  const shared = await carregarLinkCompartilhado();
 
   // 1. Define o mês vigente (só quando NÃO veio de link — o link traz seu próprio mês)
   if(!shared) currentMonth = getVigenteMonth();
