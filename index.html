@@ -2314,6 +2314,39 @@ function loadInativByRep(){
       try{ localStorage.removeItem('riosulense_inativ_byrep'); }catch(e){}
     }
   }catch(e){ INATIV_BY_REP = {}; }
+  applyGroupOverrides();   // corrige grupos com ajuste manual mesmo em dados já salvos
+}
+
+// Reagrupa TODAS as filiais dos grupos com ajuste manual (repOverrideForGroup)
+// para o representante correto — funciona em dados já importados, sem precisar reimportar.
+function applyGroupOverrides(){
+  if(!INATIV_BY_REP || !Object.keys(INATIV_BY_REP).length) return;
+  const months = (Object.values(INATIV_BY_REP)[0] || {}).months || [];
+  const moves = {};   // rep alvo → lista de filiais a mover
+  // 1) retira as filiais dos grupos com override de onde estiverem
+  Object.keys(INATIV_BY_REP).forEach(rep => {
+    const keep = [];
+    (INATIV_BY_REP[rep].grupos || []).forEach(g => {
+      const target = repOverrideForGroup(g.nome);
+      if(target){
+        (g.filiais || []).forEach(f => { (moves[target] = moves[target] || []).push(Object.assign({__grp:g.nome}, f)); });
+      } else { keep.push(g); }
+    });
+    INATIV_BY_REP[rep].grupos = keep;
+  });
+  // 2) recoloca no representante certo, reagrupando por nome do grupo
+  Object.keys(moves).forEach(rep => {
+    if(!INATIV_BY_REP[rep]) INATIV_BY_REP[rep] = {months, grupos: []};
+    const byNome = {}; (INATIV_BY_REP[rep].grupos || []).forEach(g => byNome[g.nome] = g);
+    moves[rep].forEach(f => {
+      let g = byNome[f.__grp];
+      if(!g){ g = {nome: f.__grp, vals:[0,0,0], filiais: []}; byNome[f.__grp] = g; INATIV_BY_REP[rep].grupos.push(g); }
+      g.filiais.push({nome: f.nome, vals: f.vals, familias: f.familias, uf: f.uf});
+      for(let k=0;k<3;k++) g.vals[k] += (f.vals[k] || 0);
+    });
+  });
+  // 3) remove representantes que ficaram sem nenhum grupo
+  Object.keys(INATIV_BY_REP).forEach(rep => { if(!(INATIV_BY_REP[rep].grupos || []).length) delete INATIV_BY_REP[rep]; });
 }
 
 // Reconstrói o seletor de representante da aba (a partir dos dados importados)
@@ -2440,6 +2473,7 @@ async function importInativExcel(event){
     }
 
     if(detectouRep){
+      applyGroupOverrides();   // garante grupos com ajuste manual no rep certo
       saveInativByRep();
       statusEl.textContent = '';
       rebuildInativRepSelect();
@@ -2634,11 +2668,23 @@ function groupByCliAgrup(filiais, months){
   return {months, grupos: order.map(n => byName[n])};
 }
 
+// ══════════ AJUSTES MANUAIS DE GRUPO → REPRESENTANTE ══════════
+// Alguns grupos precisam aparecer INTEIROS para um único representante
+// (mesmo que as filiais estejam cadastradas em reps diferentes na planilha),
+// porque o representante precisa acompanhar o grupo todo.
+function repOverrideForGroup(cliAgrup){
+  const n = String(cliAgrup || '').toUpperCase();
+  if(n.indexOf('BEZERRA & OLIVEIRA') >= 0) return 'ATIVA';                       // BEZERRA & OLIVEIRA → ATIVA
+  if(n.indexOf('AUTO NORTE DISTRIBUIDORA') >= 0) return 'IG REPRESENTACOES COMERCIAIS'; // AUTO NORTE → IG REPRESENTAÇÕES
+  return null;
+}
+
 // Divide por representante (usa o rep de CADA filial), regrupando por CliAgrup
 function autoSplitByRep(parsed){
   const porRepFiliais = {};
   parsed.filiais.forEach(f => {
-    const rep = f.rep || 'SEM REPRESENTANTE';
+    // Se o grupo tem ajuste manual, TODAS as filiais vão para o rep definido.
+    const rep = repOverrideForGroup(f.cliAgrup) || f.rep || 'SEM REPRESENTANTE';
     (porRepFiliais[rep] = porRepFiliais[rep] || []).push(f);
   });
   const out = {};
