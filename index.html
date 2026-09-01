@@ -2971,10 +2971,17 @@ function gerarLinkPorRep(){
   if(!rep){ alert('Escolha UM representante no seletor "Ver representante" antes de gerar o link individual.'); return; }
   const dados = INATIV_BY_REP[rep];
   if(!dados || !dados.grupos || !dados.grupos.length){ alert('Sem dados para ' + rep + '.'); return; }
+  const selMes = document.getElementById('month-selector');
+  const txt = id => { const e=document.getElementById(id); return e ? (e.textContent||'').trim() : ''; };
   const payload = {
     v: 1, ts: Date.now(),
     inativByRep: { [rep]: dados },
-    lockRep: rep, onlyInativ: true
+    lockRep: rep, onlyInativ: true,
+    // MÊS selecionado + o "Resultado do Mês" que está na tela agora,
+    // para o link abrir mostrando exatamente o mês escolhido.
+    month: currentMonth,
+    mesNome: (selMes && selMes.selectedOptions[0]) ? selMes.selectedOptions[0].text : '',
+    resMes: { real: txt('inativ-mes-real'), atp: txt('inativ-mes-atp'), car: txt('inativ-mes-car') }
   };
   // Link INSTANTÂNEO com os dados embutidos — funciona sempre, sem depender de
   // internet/nuvem (que às vezes falhava). Abre com SÓ a informação do rep escolhido.
@@ -3052,6 +3059,8 @@ function aplicarPayload(payload){
   window.__sharedTs = payload.ts || null;
   window.__lockRep = payload.lockRep || null;
   window.__onlyInativ = payload.onlyInativ || false;
+  window.__mesNome = payload.mesNome || null;      // nome do mês escolhido (ex: "Agosto 2026")
+  window.__resMes = payload.resMes || null;        // Resultado do Mês (Realizado / % / Carteira)
   return true;
 }
 
@@ -3142,6 +3151,23 @@ function aplicarModoVisualizacao(){
 
   // Renderiza a análise de inatividade do representante atual (se houver)
   refreshInativForRep();
+
+  // Aplica o MÊS escolhido e o "Resultado do Mês" que vieram no link
+  // (depois do recalc, para não serem sobrescritos pelos valores padrão).
+  if(window.__mesNome){
+    const selMes = document.getElementById('month-selector');
+    if(selMes){
+      const opt = Array.from(selMes.options).find(o => o.text === window.__mesNome);
+      if(opt){ selMes.value = opt.value; }
+    }
+    const mn = document.getElementById('inativ-mes-nome'); if(mn) mn.textContent = window.__mesNome;
+  }
+  if(window.__resMes){
+    const set = (id,val) => { const e=document.getElementById(id); if(e && val) e.textContent = val; };
+    set('inativ-mes-real', window.__resMes.real);
+    set('inativ-mes-atp',  window.__resMes.atp);
+    set('inativ-mes-car',  window.__resMes.car);
+  }
 }
 
 // Imprime um HTML completo usando um iframe oculto (não depende de pop-up).
