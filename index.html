@@ -855,6 +855,10 @@
     <select id="inativ-rep-select" onchange="refreshInativForRep()" style="padding:8px 14px;border:2px solid var(--orange);border-radius:7px;font-size:12px;font-weight:700;color:var(--dark);background:#FFF8F5;cursor:pointer;min-width:240px;">
       <option value="">Todos os Representantes</option>
     </select>
+    <button class="pdf-btn" onclick="gerarLinkPorRep()" style="margin:0;background:#1E7E34;font-size:11px;padding:8px 16px;">
+      <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:white;"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>
+      Link deste Representante
+    </button>
     <button class="pdf-btn" onclick="document.getElementById('inativ-file-input').click()" style="margin:0;background:var(--dark);font-size:11px;padding:8px 16px;">
       <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 4h5v7h7v9H6V4z"/></svg>
       Reimportar / Adicionar
@@ -2292,13 +2296,23 @@ function buildCombinedInativ(reps){
 }
 
 // Salva/carrega a análise por representante no navegador
+// __v = versão do formato. Ao subir a versão, dados antigos são descartados
+// (força reimportar) para não trazer bugs de versões anteriores.
+const INATIV_STORE_VER = 2;
 function saveInativByRep(){
-  try{ localStorage.setItem('riosulense_inativ_byrep', JSON.stringify(INATIV_BY_REP)); }catch(e){}
+  try{ localStorage.setItem('riosulense_inativ_byrep', JSON.stringify({__v:INATIV_STORE_VER, d:INATIV_BY_REP})); }catch(e){}
 }
 function loadInativByRep(){
   try{
     const raw = localStorage.getItem('riosulense_inativ_byrep');
-    if(raw) INATIV_BY_REP = JSON.parse(raw) || {};
+    if(!raw){ INATIV_BY_REP = {}; return; }
+    const parsed = JSON.parse(raw);
+    if(parsed && parsed.__v === INATIV_STORE_VER && parsed.d){
+      INATIV_BY_REP = parsed.d;                 // versão atual → usa
+    } else {
+      INATIV_BY_REP = {};                        // versão antiga → descarta
+      try{ localStorage.removeItem('riosulense_inativ_byrep'); }catch(e){}
+    }
   }catch(e){ INATIV_BY_REP = {}; }
 }
 
@@ -2337,16 +2351,39 @@ function refreshInativForRep(){
 
   const sel = $('inativ-rep-select');
   const escolhido = sel ? sel.value : '';   // '' = Todos
-  const alvo = escolhido ? [escolhido] : reps;
-  const combined = buildCombinedInativ(alvo);
-  // com 1 representante, não precisa da etiqueta
-  if(alvo.length === 1) combined.grupos.forEach(g => { delete g.rep; });
-  INATIV_DATA = combined;
+
+  if(escolhido){
+    // Um representante → mostra só os grupos/filiais dele (sem etiqueta)
+    const d = INATIV_BY_REP[escolhido] || {months:[], grupos:[]};
+    INATIV_DATA = { months: d.months, grupos: (d.grupos||[]).map(g => Object.assign({}, g)) };
+  } else {
+    // Todos → cada grupo aparece UMA vez, com a etiqueta do representante em cada filial
+    INATIV_DATA = buildCombinedAllReps();
+  }
 
   const badge = $('inativ-rep-name');
   if(badge) badge.textContent = escolhido || 'Todos os Representantes';
 
   renderInativImported();
+}
+
+// Combina TODOS os representantes: cada CliAgrup aparece uma vez, e cada filial
+// leva a etiqueta do seu representante (evita repetir o grupo por representante).
+function buildCombinedAllReps(){
+  const first = Object.values(INATIV_BY_REP)[0] || {};
+  const months = first.months || [];
+  const byNome = {}; const order = [];
+  Object.keys(INATIV_BY_REP).forEach(rep => {
+    (INATIV_BY_REP[rep].grupos || []).forEach(g => {
+      if(!byNome[g.nome]){ byNome[g.nome] = {nome:g.nome, vals:[0,0,0], filiais:[]}; order.push(g.nome); }
+      const G = byNome[g.nome];
+      (g.filiais || []).forEach(f => {
+        G.filiais.push(Object.assign({}, f, {rep: rep}));   // etiqueta na filial
+        for(let k=0;k<3;k++) G.vals[k] += (f.vals[k]||0);
+      });
+    });
+  });
+  return {months, grupos: order.map(n => byNome[n])};
 }
 
 // ── VARIÁVEIS GLOBAIS ────────────────────────────────────────
@@ -2384,12 +2421,16 @@ async function importInativExcel(event){
     let detectouRep = false;
     let repsDetectados = {};
     const semRep = [];   // arquivos no formato antigo (sem coluna Rep)
+    let limpou = false;
 
     for(const f of files){
       const parsed = await parseInativFile(f);
-      if(!parsed.grupos.length) continue;
+      if(!parsed.filiais || !parsed.filiais.length) continue;
       if(parsed.temRep){
-        // Planilha traz o representante embutido → divide automaticamente
+        // Formato novo (traz o representante). Na 1ª planilha com rep, LIMPA os
+        // cadastros antigos para não duplicar (ex: "ATIVA" vs "ATIVA REPRESENTAÇÕES").
+        if(!limpou){ INATIV_BY_REP = {}; limpou = true; }
+        // Divide por representante usando o rep de CADA filial
         const split = autoSplitByRep(parsed);
         Object.keys(split).forEach(rep => { INATIV_BY_REP[rep] = split[rep]; repsDetectados[rep] = 1; });
         detectouRep = true;
@@ -2544,10 +2585,12 @@ async function parseGrandesContas(zip){
     if(e) months = [e, f||'Mês 2', g||'Mês 3'];
   }
 
-  // 5. percorre linhas montando Grupo(ind=2) → Filial(ind=4) → Família(ind=6)
-  //    Se a planilha tiver a coluna "Rep" (ind=14), captura o representante por grupo.
-  const grupos = [];
-  let curGrupo = null, curFilial = null;
+  // 5. percorre montando FILIAIS (ind=4), cada uma com seu Grupo(CliAgrup, ind=2),
+  //    suas Famílias (ind=6) e o Representante (ind=14 — a coluna "Rep").
+  //    IMPORTANTE: o representante é POR FILIAL, pois um grupo pode ter filiais
+  //    de representantes diferentes.
+  const filiais = [];            // {cliAgrup, nome, vals, familias, rep}
+  let curCliAgrup = null, curFilial = null;
   const limparRep = s => String(s).replace(/\s*\(\d+\)\s*$/,'').trim(); // remove código " (11)"
   rows.forEach(row => {
     const cells = {};
@@ -2561,37 +2604,48 @@ async function parseGrandesContas(zip){
     const v2 = cellVal(cells['F']) || 0;
     const v3 = cellVal(cells['G']) || 0;
     if(indent === 2){
-      curGrupo = {nome:name, vals:[v1,v2,v3], filiais:[], rep:null};
-      curFilial = null;
-      grupos.push(curGrupo);
+      curCliAgrup = name; curFilial = null;
     } else if(indent === 4){
-      curFilial = {nome:name, vals:[v1,v2,v3], familias:[]};
-      if(!curGrupo){ curGrupo = {nome:name, vals:[v1,v2,v3], filiais:[], rep:null}; grupos.push(curGrupo); }
-      curGrupo.filiais.push(curFilial);
+      curFilial = {cliAgrup: curCliAgrup || name, nome:name, vals:[v1,v2,v3], familias:[], rep:null, uf:null};
+      filiais.push(curFilial);
     } else if(indent === 6 && curFilial){
       curFilial.familias.push({nome:name, vals:[v1,v2,v3]});
-    } else if(indent === 14 && curGrupo && !curGrupo.rep){
-      // Linha do Representante (coluna Rep) — primeiro que aparece vale para o grupo
-      curGrupo.rep = limparRep(name);
+    } else if(indent === 14 && curFilial && !curFilial.rep){
+      curFilial.rep = limparRep(name);   // representante DA FILIAL (coluna Rep)
+    } else if(indent === 18 && curFilial && !curFilial.uf){
+      curFilial.uf = String(name).trim();  // Estado/região DA FILIAL (coluna Estado)
     }
   });
 
-  // Detecta se a planilha traz o representante embutido
-  const temRep = grupos.some(g => g.rep);
-  return {months, grupos, temRep};
+  const temRep = filiais.some(f => f.rep);
+  const grupos = groupByCliAgrup(filiais, months).grupos;  // visão sem separar rep
+  return {months, filiais, grupos, temRep};
 }
 
-// Divide uma análise (com rep embutido) em INATIV_BY_REP por representante
-function autoSplitByRep(parsed){
-  const porRep = {};
-  parsed.grupos.forEach(g => {
-    const rep = g.rep || 'SEM REPRESENTANTE';
-    if(!porRep[rep]) porRep[rep] = {months: parsed.months, grupos: []};
-    // remove o campo rep do grupo (fica implícito pela chave)
-    const g2 = Object.assign({}, g); delete g2.rep;
-    porRep[rep].grupos.push(g2);
+// Agrupa filiais por CliAgrup, recalculando o total do grupo pela soma das filiais
+function groupByCliAgrup(filiais, months){
+  const byName = {}; const order = [];
+  filiais.forEach(f => {
+    if(!byName[f.cliAgrup]){ byName[f.cliAgrup] = {nome:f.cliAgrup, vals:[0,0,0], filiais:[]}; order.push(f.cliAgrup); }
+    const g = byName[f.cliAgrup];
+    g.filiais.push({nome:f.nome, vals:f.vals, familias:f.familias, uf:f.uf});
+    for(let k=0;k<3;k++) g.vals[k] += (f.vals[k]||0);
   });
-  return porRep;
+  return {months, grupos: order.map(n => byName[n])};
+}
+
+// Divide por representante (usa o rep de CADA filial), regrupando por CliAgrup
+function autoSplitByRep(parsed){
+  const porRepFiliais = {};
+  parsed.filiais.forEach(f => {
+    const rep = f.rep || 'SEM REPRESENTANTE';
+    (porRepFiliais[rep] = porRepFiliais[rep] || []).push(f);
+  });
+  const out = {};
+  Object.keys(porRepFiliais).forEach(rep => {
+    out[rep] = groupByCliAgrup(porRepFiliais[rep], parsed.months);
+  });
+  return out;
 }
 
 // Retorna GRUPOS filtrados conforme busca, filtro geral e filtros por coluna
@@ -2773,7 +2827,6 @@ function applyInativFilter(){
       <tr style="background:#FFF3EC;cursor:${clicavel?'pointer':'default'};border-top:2px solid var(--orange);" ${clicavel?`onclick="toggleInativRow('g','${gi}')"`:''}>
         <td style="font-weight:800;color:var(--dark);font-size:12px;">
           ${clicavel?`<span id="arrow-g-${gi}" style="color:var(--orange);font-size:11px;margin-right:6px;">${autoExpand?'▼':'▶'}</span>`:'<span style="margin-right:18px;"></span>'}
-          ${g.rep?`<span style="display:inline-block;background:var(--dark);color:#fff;font-size:8px;font-weight:800;padding:2px 7px;border-radius:10px;margin-right:6px;vertical-align:middle;letter-spacing:.3px;">${g.rep}</span>`:''}
           ${g.nome}
           ${multiFilial?`<span style="font-size:9px;color:#999;font-weight:600;margin-left:6px;">(${g.filiais.length} filiais)</span>`:''}
         </td>
@@ -2802,7 +2855,7 @@ function applyInativFilter(){
           <tr data-parent="g-${gi}" data-self="${selfId}" style="display:${autoExpand?'':'none'};background:${bgFilial};cursor:${temFam?'pointer':'default'};" ${temFam?`onclick="toggleInativRow('f','${gi}-${fi}')"`:''}>
             <td style="padding-left:34px;font-weight:700;color:${nomeCor};font-size:11px;">
               ${temFam?`<span id="arrow-f-${gi}-${fi}" style="color:#888;font-size:10px;margin-right:6px;">▶</span>`:'<span style="margin-right:16px;"></span>'}
-              ↳ ${f.nome}${filialSemVenda?' 🔴':''}
+              ↳ ${f.rep?`<span style="display:inline-block;background:var(--dark);color:#fff;font-size:8px;font-weight:800;padding:2px 7px;border-radius:10px;margin-right:5px;vertical-align:middle;letter-spacing:.3px;">${f.rep}</span>`:''}${f.uf?`<span style="display:inline-block;background:#7CB342;color:#fff;font-size:8px;font-weight:800;padding:2px 6px;border-radius:10px;margin-right:5px;vertical-align:middle;">${f.uf}</span>`:''}${f.nome}${filialSemVenda?' 🔴':''}
             </td>
             ${inativCellHtml(fm1)}${inativCellHtml(fm2)}${inativCellHtml(fm3)}
             <td style="font-weight:700;color:#C0392B;font-size:9px">${fSem.length ? fSem.join(', ') : '<span style="color:#1E7E34">Nenhum</span>'}</td>
@@ -2865,14 +2918,43 @@ function gerarLinkCompartilhar(){
   const base = location.origin + location.pathname;
   const link = base + '#d=' + comp;
 
+  mostrarLinkModal(link, 'Dashboard completo (todos)');
+}
+
+// Gera link SÓ do representante selecionado na aba Clientes Inativos,
+// abrindo direto nessa aba e mostrando apenas os dados dele.
+function gerarLinkPorRep(){
+  if(typeof LZString === 'undefined'){ alert('A biblioteca de compressão não carregou. Recarregue a página.'); return; }
+  const sel = $('inativ-rep-select');
+  const rep = sel ? sel.value : '';
+  if(!rep){
+    alert('Escolha UM representante no seletor "Ver representante" antes de gerar o link individual.');
+    return;
+  }
+  const dados = INATIV_BY_REP[rep];
+  if(!dados || !dados.grupos || !dados.grupos.length){ alert('Sem dados para ' + rep + '.'); return; }
+
+  const payload = {
+    v: 1,
+    ts: Date.now(),
+    inativByRep: { [rep]: dados },   // SÓ este representante
+    lockRep: rep,                    // trava o seletor neste rep
+    onlyInativ: true                 // abre só a aba Clientes Inativos
+  };
+  let comp;
+  try{ comp = LZString.compressToEncodedURIComponent(JSON.stringify(payload)); }
+  catch(e){ alert('Erro ao gerar o link.'); return; }
+  const link = location.origin + location.pathname + '#d=' + comp;
+  mostrarLinkModal(link, rep);
+}
+
+// Preenche e abre o modal de link
+function mostrarLinkModal(link, repLabel){
   const ta = $('share-link-text');
   ta.value = link;
-  // Mostra só o nome do representante em destaque; link fica oculto
-  const rep = currentInativRep() || ($('filter-text') ? $('filter-text').textContent : 'Todos os Representantes');
-  const repEl = $('share-rep-name'); if(repEl) repEl.textContent = rep;
+  const repEl = $('share-rep-name'); if(repEl) repEl.textContent = repLabel || '—';
   const kb = Math.round(link.length/1024);
   $('share-link-size').textContent = `Link pronto (~${kb} KB). Toque em Copiar e cole no WhatsApp/e-mail.`;
-  // esconde o link cru por padrão
   ta.style.display = 'none';
   const tgl = $('share-toggle-link'); if(tgl) tgl.textContent = '▸ ver o link';
   $('modal-share').classList.add('show');
@@ -2921,6 +3003,8 @@ function carregarLinkCompartilhado(){
 
     window.__sharedView = true;
     window.__sharedTs = payload.ts || null;
+    window.__lockRep = payload.lockRep || null;      // trava num representante
+    window.__onlyInativ = payload.onlyInativ || false; // abre só a aba Clientes Inativos
     return true;
   }catch(e){ return false; }
 }
@@ -2941,6 +3025,28 @@ function aplicarModoVisualizacao(){
   // Esconde botões de edição/reset/gerar-link e o botão + de clientes
   ['btn-share'].forEach(id => { const b=$(id); if(b) b.style.display='none'; });
   document.querySelectorAll('.reset-btn, .prev-btn-add').forEach(b => b.style.display='none');
+
+  // Link individual: abre só a aba Clientes Inativos, travada no representante
+  if(window.__onlyInativ){
+    // esconde as outras abas e o filtro de representante do topo
+    document.querySelectorAll('.tab').forEach(t => {
+      if(t.getAttribute('onclick') && t.getAttribute('onclick').indexOf('inatividade') < 0) t.style.display = 'none';
+    });
+    const toolbar = document.querySelector('.toolbar'); if(toolbar) toolbar.style.display='none';
+    // vai para a aba Clientes Inativos
+    const tabInativ = Array.from(document.querySelectorAll('.tab')).find(t => t.getAttribute('onclick') && t.getAttribute('onclick').indexOf('inatividade')>=0);
+    if(tabInativ) showTab(tabInativ, 'inatividade');
+  }
+
+  // Trava o seletor de representante, se o link for individual
+  if(window.__lockRep){
+    rebuildInativRepSelect();
+    const sel = $('inativ-rep-select');
+    if(sel){ sel.value = window.__lockRep; sel.disabled = true; sel.style.cursor='not-allowed'; }
+    // esconde os botões de importar/reimportar/link da barra
+    document.querySelectorAll('#inativ-rep-bar .pdf-btn').forEach(b => b.style.display='none');
+  }
+
   // Renderiza a análise de inatividade do representante atual (se houver)
   refreshInativForRep();
 }
