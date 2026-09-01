@@ -3072,11 +3072,8 @@ function fecharLinkModal(){ $('modal-share').classList.remove('show'); }
 
 function copiarLink(){
   const link = window.__shareLink || $('share-link-text').value;
-  const rep = window.__shareRepLabel || '';
-  // Mensagem com o nome do representante em destaque + o link
-  const texto = rep
-    ? `📊 *Clientes Sem Vendas — ${rep}*\n(Riosulense · Análise de Grandes Contas)\n\n👉 ${link}`
-    : link;
+  // Copia SOMENTE o link puro (sem texto/emoji na frente, que atrapalhava).
+  const texto = link;
   const done = () => { const b=$('copy-btn-text'); if(b){ b.textContent='✓ Copiado!'; setTimeout(()=>b.textContent='📋 Copiar Link',2000);} };
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(texto).then(done).catch(()=>{
