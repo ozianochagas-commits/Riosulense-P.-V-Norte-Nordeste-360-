@@ -643,6 +643,19 @@
   </div>
 </div>
 
+<!-- MODAL IMPORTAR VÁRIOS (mapa arquivo → representante) -->
+<div class="modal-overlay" id="modal-import-map">
+  <div class="modal-content" style="max-width:620px;">
+    <div class="modal-header"><span>📥 Importar Planilhas</span><button class="modal-close" onclick="fecharMapModal()">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:#555;line-height:1.6;margin:0;">Escolha qual <strong>representante</strong> é cada arquivo. (Deixe em "— escolher —" para pular um arquivo.)</p>
+      <div id="map-files-list" style="margin-top:6px;"></div>
+      <div id="map-status" style="font-size:11px;font-weight:700;text-align:center;"></div>
+      <button class="btn-modal-save" onclick="importAllMapped()" style="background:var(--orange);">✓ Importar Tudo</button>
+    </div>
+  </div>
+</div>
+
 <!-- PDF REP HEADER (visible only on print) -->
 <div id="pdf-rep-header" class="pdf-rep-header"></div>
 
@@ -833,27 +846,33 @@
     </div>
   </div>
 
-  <!-- MENSAGEM: selecione um representante -->
-  <div id="inativ-multi-msg" style="display:none;background:white;border:3px dashed #999;border-radius:12px;padding:36px 24px;text-align:center;margin-bottom:24px;box-shadow:0 2px 10px rgba(0,0,0,.06);">
-    <div style="font-size:44px;margin-bottom:10px;">👤</div>
-    <h3 style="font-size:16px;font-weight:900;color:var(--dark);margin-bottom:6px;">Selecione um representante</h3>
-    <p style="font-size:12px;color:#777;line-height:1.6;max-width:460px;margin:0 auto;">
-      No filtro <strong>"Filtrar por Representante"</strong> (topo), escolha <strong>um único representante</strong> para ver ou importar a análise de grandes contas dele.
-    </p>
+  <!-- (mensagem antiga desativada) -->
+  <div id="inativ-multi-msg" style="display:none;"></div>
+
+  <!-- SELETOR DE REPRESENTANTE (aba) — vem dos dados importados -->
+  <div id="inativ-rep-bar" style="display:none;align-items:center;gap:12px;background:white;border-radius:10px;padding:12px 18px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,.06);flex-wrap:wrap;">
+    <span style="font-size:11px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;">👤 Ver representante:</span>
+    <select id="inativ-rep-select" onchange="refreshInativForRep()" style="padding:8px 14px;border:2px solid var(--orange);border-radius:7px;font-size:12px;font-weight:700;color:var(--dark);background:#FFF8F5;cursor:pointer;min-width:240px;">
+      <option value="">Todos os Representantes</option>
+    </select>
+    <button class="pdf-btn" onclick="document.getElementById('inativ-file-input').click()" style="margin:0;background:var(--dark);font-size:11px;padding:8px 16px;">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 4h5v7h7v9H6V4z"/></svg>
+      Reimportar / Adicionar
+    </button>
   </div>
 
   <!-- ÁREA DE IMPORTAÇÃO -->
   <div id="inativ-import-area" style="background:white;border:3px dashed var(--orange);border-radius:12px;padding:36px 24px;text-align:center;margin-bottom:24px;box-shadow:0 2px 10px rgba(0,0,0,.06);">
     <div style="font-size:48px;margin-bottom:12px;">📥</div>
-    <h3 style="font-size:18px;font-weight:900;color:var(--dark);margin-bottom:8px;">Importar Planilha de Vendas</h3>
-    <p style="font-size:12px;color:#777;margin-bottom:20px;max-width:520px;margin-left:auto;margin-right:auto;line-height:1.6;">
-      Selecione o arquivo <strong>.xlsx</strong> no formato "Análise de Grandes Contas".<br>
-      O sistema lê a hierarquia (Cliente → Família → Produto) e os valores mensais automaticamente.
+    <h3 style="font-size:18px;font-weight:900;color:var(--dark);margin-bottom:8px;">Importar Planilha(s) de Vendas</h3>
+    <p style="font-size:12px;color:#777;margin-bottom:20px;max-width:540px;margin-left:auto;margin-right:auto;line-height:1.6;">
+      Selecione o(s) arquivo(s) <strong>.xlsx</strong> "Análise de Grandes Contas".<br>
+      <strong>Dica:</strong> selecione <strong>vários arquivos de uma vez</strong> — você escolhe qual representante é cada um.
     </p>
-    <input type="file" id="inativ-file-input" accept=".xlsx" style="display:none;" onchange="importInativExcel(event)">
+    <input type="file" id="inativ-file-input" accept=".xlsx" multiple style="display:none;" onchange="importInativExcel(event)">
     <button class="pdf-btn" onclick="document.getElementById('inativ-file-input').click()" style="margin:0 auto;display:inline-flex;font-size:13px;padding:12px 28px;">
       <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 4h5v7h7v9H6V4z"/></svg>
-      Escolher Planilha Excel
+      Escolher Planilha(s)
     </button>
     <div id="inativ-import-status" style="margin-top:16px;font-size:12px;font-weight:700;"></div>
   </div>
@@ -2077,10 +2096,6 @@ function updateFilterText(){
     repLabel = `${selectedCount} Representante${selectedCount !== 1 ? 's' : ''} Selecionados`;
   }
   filterText.textContent = repLabel;
-
-  // Reflete o representante selecionado na aba Clientes Inativos
-  const inativRep = $('inativ-rep-name');
-  if(inativRep) inativRep.textContent = repLabel;
 }
 
 // Marca/desmarca todos os representantes
@@ -2118,9 +2133,6 @@ function applyFilter(){
 
   // Atualiza texto do filtro
   updateFilterText();
-
-  // Atualiza a análise de Clientes Inativos conforme o representante
-  refreshInativForRep();
 
   // Atualiza todos os números com os valores atuais dos inputs
   recalc();
@@ -2254,12 +2266,29 @@ let INATIV_DATA = {
 // Cada representante tem sua própria análise importada
 let INATIV_BY_REP = {};  // { 'IG REPRESENTAÇÕES': {months, grupos}, ... }
 
-// Retorna o representante único selecionado no filtro do topo, ou null (Todos/vários)
-function currentInativRep(){
+// Representantes marcados no filtro do topo
+function selectedRepNames(){
   const cbs = document.querySelectorAll('.rep-checkbox');
-  const sel = Array.from(cbs).filter(cb => cb.checked);
-  if(sel.length === 1) return BASE[parseInt(sel[0].dataset.idx)].name;
-  return null;
+  return Array.from(cbs).filter(cb => cb.checked).map(cb => BASE[parseInt(cb.dataset.idx)].name);
+}
+// Representante único selecionado, ou null (Todos/vários)
+function currentInativRep(){
+  const s = selectedRepNames();
+  return s.length === 1 ? s[0] : null;
+}
+
+// Junta as análises dos representantes indicados em uma visão só
+function buildCombinedInativ(reps){
+  let months = [];
+  const grupos = [];
+  reps.forEach(rep => {
+    const d = INATIV_BY_REP[rep];
+    if(d && d.grupos && d.grupos.length){
+      if(!months.length) months = d.months;
+      d.grupos.forEach(g => grupos.push(Object.assign({}, g, {rep: rep})));
+    }
+  });
+  return {months, grupos};
 }
 
 // Salva/carrega a análise por representante no navegador
@@ -2273,38 +2302,51 @@ function loadInativByRep(){
   }catch(e){ INATIV_BY_REP = {}; }
 }
 
-// Troca a análise exibida conforme o representante selecionado no topo
+// Reconstrói o seletor de representante da aba (a partir dos dados importados)
+function rebuildInativRepSelect(){
+  const sel = $('inativ-rep-select'); if(!sel) return;
+  const reps = Object.keys(INATIV_BY_REP).sort();
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Todos os Representantes</option>' +
+    reps.map(r => `<option value="${r}">${r}</option>`).join('');
+  if(prev && reps.includes(prev)) sel.value = prev;
+}
+
+// Troca a análise exibida conforme o representante escolhido NO SELETOR DA ABA
 function refreshInativForRep(){
-  const rep = currentInativRep();
   const importArea = $('inativ-import-area');
   const results = $('inativ-results');
+  const bar = $('inativ-rep-bar');
   const msg = $('inativ-multi-msg');
   if(!importArea || !results) return;
-
-  if(!rep){
-    // Todos ou vários selecionados → pede um único representante
-    INATIV_DATA = {months:[], grupos:[]};
-    importArea.style.display = 'none';
-    results.style.display = 'none';
-    if(msg) msg.style.display = 'block';
-    sv('inativ-total', '—');
-    return;
-  }
   if(msg) msg.style.display = 'none';
 
-  const data = INATIV_BY_REP[rep];
-  if(data && data.grupos && data.grupos.length){
-    INATIV_DATA = data;
-    renderInativImported();
-  } else {
-    // Sem dados para esse representante → mostra área de importação
+  const reps = Object.keys(INATIV_BY_REP);
+  if(!reps.length){
+    // Sem nenhuma planilha importada → mostra área de importação
     INATIV_DATA = {months:[], grupos:[]};
+    if(bar) bar.style.display = 'none';
     importArea.style.display = 'block';
     results.style.display = 'none';
     sv('inativ-total', '—');
-    const st = $('inativ-import-status');
-    if(st){ st.style.color='var(--dark)'; st.textContent = '📄 Importe a planilha de grandes contas de ' + rep; }
+    return;
   }
+
+  rebuildInativRepSelect();
+  if(bar) bar.style.display = 'flex';
+
+  const sel = $('inativ-rep-select');
+  const escolhido = sel ? sel.value : '';   // '' = Todos
+  const alvo = escolhido ? [escolhido] : reps;
+  const combined = buildCombinedInativ(alvo);
+  // com 1 representante, não precisa da etiqueta
+  if(alvo.length === 1) combined.grupos.forEach(g => { delete g.rep; });
+  INATIV_DATA = combined;
+
+  const badge = $('inativ-rep-name');
+  if(badge) badge.textContent = escolhido || 'Todos os Representantes';
+
+  renderInativImported();
 }
 
 // ── VARIÁVEIS GLOBAIS ────────────────────────────────────────
@@ -2316,54 +2358,114 @@ let currentMonth = '2026-03'; // Mês selecionado (formato YYYY-MM)
 // usando o índice de estilo de cada célula p/ descobrir a
 // hierarquia (indentação): Cliente (ind 4) → Família (ind 6).
 
+// Lê um arquivo .xlsx e devolve {months, grupos}
+async function parseInativFile(file){
+  const buf = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  return await parseGrandesContas(zip);
+}
+
 async function importInativExcel(event){
-  const file = event.target.files[0];
-  if(!file) return;
+  const files = Array.from(event.target.files || []);
+  event.target.value = '';
+  if(!files.length) return;
 
   const statusEl = $('inativ-import-status');
-  statusEl.style.color = 'var(--dark)';
-  statusEl.textContent = '⏳ Lendo planilha...';
-
-  // Precisa de UM representante selecionado para vincular a planilha a ele
-  const rep = currentInativRep();
-  if(!rep){
-    statusEl.style.color = '#C0392B';
-    statusEl.textContent = '⚠️ Selecione UM representante no filtro do topo antes de importar.';
-    event.target.value = '';
-    return;
-  }
-
   if(typeof JSZip === 'undefined'){
     statusEl.style.color = '#C0392B';
-    statusEl.textContent = '❌ Biblioteca de leitura não carregou. Verifique sua conexão e recarregue a página.';
+    statusEl.textContent = '❌ Biblioteca de leitura não carregou. Recarregue a página.';
     return;
   }
 
-  try{
-    const buf = await file.arrayBuffer();
-    const zip = await JSZip.loadAsync(buf);
-    const parsed = await parseGrandesContas(zip);
+  statusEl.style.color = 'var(--dark)';
+  statusEl.textContent = '⏳ Lendo planilha(s)...';
 
-    if(!parsed.grupos.length){
-      statusEl.style.color = '#C0392B';
-      statusEl.textContent = '⚠️ Nenhum cliente encontrado. Confirme que é a planilha "Análise de Grandes Contas".';
-      return;
+  try{
+    let detectouRep = false;
+    let repsDetectados = {};
+    const semRep = [];   // arquivos no formato antigo (sem coluna Rep)
+
+    for(const f of files){
+      const parsed = await parseInativFile(f);
+      if(!parsed.grupos.length) continue;
+      if(parsed.temRep){
+        // Planilha traz o representante embutido → divide automaticamente
+        const split = autoSplitByRep(parsed);
+        Object.keys(split).forEach(rep => { INATIV_BY_REP[rep] = split[rep]; repsDetectados[rep] = 1; });
+        detectouRep = true;
+      } else {
+        semRep.push(f);
+      }
     }
 
-    // Vincula a análise ao representante selecionado
-    INATIV_BY_REP[rep] = parsed;
-    saveInativByRep();
-    INATIV_DATA = parsed;
-    renderInativImported();
+    if(detectouRep){
+      saveInativByRep();
+      statusEl.textContent = '';
+      rebuildInativRepSelect();
+      refreshInativForRep();
+      const nR = Object.keys(repsDetectados).length;
+      showNotification(`✓ ${nR} representante(s) detectado(s) na planilha!`);
+    }
 
-    const nFiliais = parsed.grupos.reduce((s,g)=>s+g.filiais.length,0);
-    statusEl.textContent = '';
-    showNotification(`✓ ${rep}: ${parsed.grupos.length} grupos · ${nFiliais} filiais!`);
+    // Arquivos no formato antigo (sem coluna Rep) → mapeia manualmente
+    if(semRep.length){
+      openMapModal(semRep);
+    }
+
+    if(!detectouRep && !semRep.length){
+      statusEl.style.color = '#C0392B';
+      statusEl.textContent = '⚠️ Nenhum cliente encontrado. Confirme que é a planilha "Análise de Grandes Contas".';
+    }
   }catch(err){
     statusEl.style.color = '#C0392B';
-    statusEl.textContent = '❌ Erro ao ler o arquivo: ' + err.message;
+    statusEl.textContent = '❌ Erro ao ler: ' + err.message;
     console.error(err);
   }
+}
+
+// ── IMPORTAR VÁRIOS: mapeia cada arquivo a um representante ──
+let __mapFiles = [];
+function openMapModal(files){
+  __mapFiles = files;
+  const list = $('map-files-list');
+  const repOpts = BASE.map(b=>`<option value="${b.name}">${b.name}</option>`).join('');
+  list.innerHTML = files.map((f,i)=>`
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;">
+      <span style="flex:1;font-size:11px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${f.name}">📄 ${f.name}</span>
+      <span style="color:#999;">→</span>
+      <select id="map-rep-${i}" style="padding:6px 8px;border:2px solid #E0E0E0;border-radius:6px;font-size:11px;min-width:180px;">
+        <option value="">— escolher representante —</option>
+        ${repOpts}
+      </select>
+    </div>`).join('');
+  // pré-preenche na ordem dos representantes (você pode ajustar)
+  files.forEach((f,i)=>{ const s=$('map-rep-'+i); if(s && BASE[i]) s.value = BASE[i].name; });
+  const st=$('map-status'); if(st) st.textContent='';
+  $('modal-import-map').classList.add('show');
+}
+function fecharMapModal(){ $('modal-import-map').classList.remove('show'); __mapFiles=[]; }
+
+async function importAllMapped(){
+  const st=$('map-status');
+  st.style.color='var(--dark)'; st.textContent='⏳ Importando...';
+  // valida duplicidade de representante
+  const usados = {};
+  for(let i=0;i<__mapFiles.length;i++){
+    const rep = $('map-rep-'+i) ? $('map-rep-'+i).value : '';
+    if(rep){ if(usados[rep]){ st.style.color='#C0392B'; st.textContent='⚠️ '+rep+' está selecionado em mais de um arquivo.'; return; } usados[rep]=1; }
+  }
+  let ok=0;
+  for(let i=0;i<__mapFiles.length;i++){
+    const rep = $('map-rep-'+i) ? $('map-rep-'+i).value : '';
+    if(!rep) continue;
+    try{
+      const parsed = await parseInativFile(__mapFiles[i]);
+      if(parsed && parsed.grupos.length){ INATIV_BY_REP[rep]=parsed; ok++; }
+    }catch(e){}
+  }
+  saveInativByRep();
+  st.style.color='#1E7E34'; st.textContent=`✓ ${ok} planilha(s) importada(s)!`;
+  setTimeout(()=>{ fecharMapModal(); rebuildInativRepSelect(); refreshInativForRep(); showNotification(`✓ ${ok} planilha(s) importada(s)!`); }, 700);
 }
 
 // Atualiza a UII a partir de INATIV_DATA (usado pela importação e pelo link compartilhado)
@@ -2443,8 +2545,10 @@ async function parseGrandesContas(zip){
   }
 
   // 5. percorre linhas montando Grupo(ind=2) → Filial(ind=4) → Família(ind=6)
+  //    Se a planilha tiver a coluna "Rep" (ind=14), captura o representante por grupo.
   const grupos = [];
   let curGrupo = null, curFilial = null;
+  const limparRep = s => String(s).replace(/\s*\(\d+\)\s*$/,'').trim(); // remove código " (11)"
   rows.forEach(row => {
     const cells = {};
     (row.match(/<c [^>]*(?:\/>|>[\s\S]*?<\/c>)/g)||[]).forEach(c => {
@@ -2457,20 +2561,37 @@ async function parseGrandesContas(zip){
     const v2 = cellVal(cells['F']) || 0;
     const v3 = cellVal(cells['G']) || 0;
     if(indent === 2){
-      curGrupo = {nome:name, vals:[v1,v2,v3], filiais:[]};
+      curGrupo = {nome:name, vals:[v1,v2,v3], filiais:[], rep:null};
       curFilial = null;
       grupos.push(curGrupo);
     } else if(indent === 4){
       curFilial = {nome:name, vals:[v1,v2,v3], familias:[]};
-      // se não houver grupo antes (planilha atípica), cria grupo espelho
-      if(!curGrupo){ curGrupo = {nome:name, vals:[v1,v2,v3], filiais:[]}; grupos.push(curGrupo); }
+      if(!curGrupo){ curGrupo = {nome:name, vals:[v1,v2,v3], filiais:[], rep:null}; grupos.push(curGrupo); }
       curGrupo.filiais.push(curFilial);
     } else if(indent === 6 && curFilial){
       curFilial.familias.push({nome:name, vals:[v1,v2,v3]});
+    } else if(indent === 14 && curGrupo && !curGrupo.rep){
+      // Linha do Representante (coluna Rep) — primeiro que aparece vale para o grupo
+      curGrupo.rep = limparRep(name);
     }
   });
 
-  return {months, grupos};
+  // Detecta se a planilha traz o representante embutido
+  const temRep = grupos.some(g => g.rep);
+  return {months, grupos, temRep};
+}
+
+// Divide uma análise (com rep embutido) em INATIV_BY_REP por representante
+function autoSplitByRep(parsed){
+  const porRep = {};
+  parsed.grupos.forEach(g => {
+    const rep = g.rep || 'SEM REPRESENTANTE';
+    if(!porRep[rep]) porRep[rep] = {months: parsed.months, grupos: []};
+    // remove o campo rep do grupo (fica implícito pela chave)
+    const g2 = Object.assign({}, g); delete g2.rep;
+    porRep[rep].grupos.push(g2);
+  });
+  return porRep;
 }
 
 // Retorna GRUPOS filtrados conforme busca, filtro geral e filtros por coluna
@@ -2652,6 +2773,7 @@ function applyInativFilter(){
       <tr style="background:#FFF3EC;cursor:${clicavel?'pointer':'default'};border-top:2px solid var(--orange);" ${clicavel?`onclick="toggleInativRow('g','${gi}')"`:''}>
         <td style="font-weight:800;color:var(--dark);font-size:12px;">
           ${clicavel?`<span id="arrow-g-${gi}" style="color:var(--orange);font-size:11px;margin-right:6px;">${autoExpand?'▼':'▶'}</span>`:'<span style="margin-right:18px;"></span>'}
+          ${g.rep?`<span style="display:inline-block;background:var(--dark);color:#fff;font-size:8px;font-weight:800;padding:2px 7px;border-radius:10px;margin-right:6px;vertical-align:middle;letter-spacing:.3px;">${g.rep}</span>`:''}
           ${g.nome}
           ${multiFilial?`<span style="font-size:9px;color:#999;font-weight:600;margin-left:6px;">(${g.filiais.length} filiais)</span>`:''}
         </td>
@@ -2699,18 +2821,17 @@ function applyInativFilter(){
 }
 
 function clearInativImport(){
-  // Remove a análise só do representante atual
-  const rep = currentInativRep();
-  if(rep){ delete INATIV_BY_REP[rep]; saveInativByRep(); }
+  // Apaga TODAS as análises importadas (recomeça a importação)
+  INATIV_BY_REP = {};
+  saveInativByRep();
   INATIV_DATA = {months:[], grupos:[]};
   $('inativ-file-input').value = '';
   $('inativ-search').value = '';
   $('inativ-months-filter').value = '';
   document.querySelectorAll('.col-filter').forEach(sel => sel.value = '');
+  const rs=$('inativ-rep-select'); if(rs) rs.value='';
   $('inativ-import-status').textContent = '';
-  $('inativ-import-area').style.display = 'block';
-  $('inativ-results').style.display = 'none';
-  sv('inativ-total', '—');
+  refreshInativForRep();
 }
 
 // ══════════ COMPARTILHAR VIA LINK (dados embutidos) ══════════
