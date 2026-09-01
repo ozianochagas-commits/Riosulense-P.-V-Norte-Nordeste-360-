@@ -58,7 +58,7 @@
     @page{ size:A4 landscape; margin:10mm 10mm; }
 
     /* ocultar controles */
-    .tabs, .toolbar, footer, .pdf-btn, .reset-btn,
+    header, .tabs, .toolbar, footer, .pdf-btn, .reset-btn,
     .ibox, .pdf-rep-header-hide { display:none !important; }
 
     /* mostrar só a aba marcada */
@@ -801,7 +801,7 @@
         <div><div style="font-size:8px;opacity:.65;text-transform:uppercase;letter-spacing:.5px;">Carteira</div><strong id="inativ-mes-car" style="font-size:15px;color:#7CB342;font-weight:900;">—</strong></div>
       </div>
       <div style="border-top:1px solid rgba(255,255,255,.15);padding-top:8px;">
-        <span>Grupos Sem Venda</span><strong id="inativ-total">—</strong>
+        <span>Grupos Sem Venda <span id="inativ-kpi-mes" style="color:var(--orange2);font-weight:900;"></span></span><strong id="inativ-total">—</strong>
       </div>
     </div>
   </div>
@@ -2487,10 +2487,11 @@ function applyInativFilter(){
 
   const filtered = getFilteredInativGrupos();
 
-  // KPI: grupos com ao menos 1 mês sem venda (grupo OU alguma filial)
-  const semVendaCount = INATIV_DATA.grupos.filter(g =>
-    [0,1,2].some(k => gGrupoTemSemVenda(g, k))).length;
+  // KPI: grupos sem venda SÓ no último mês (grupo OU alguma filial)
+  const lastIdx = Math.max(0, INATIV_DATA.months.length - 1);
+  const semVendaCount = INATIV_DATA.grupos.filter(g => gGrupoTemSemVenda(g, lastIdx)).length;
   sv('inativ-total', semVendaCount.toString());
+  sv('inativ-kpi-mes', 'em ' + (INATIV_DATA.months[lastIdx] || ''));
 
   if(filtered.length === 0){
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;padding:20px">Nenhum grupo neste filtro</td></tr>';
