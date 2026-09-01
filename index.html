@@ -1324,12 +1324,15 @@ function exportPrevisaoPDF(){
 function getTotalClientsPrevision(repIndex){
   const clients = CLIENTS[repIndex] || [];
   let total = 0;
-  
+
   for(let i = 0; i < clients.length; i++){
     const c = clients[i];
-    total += toNumber(c.value);
+    // SOMENTE conta clientes que estão SELECIONADOS (checked)
+    if(c.selected === true) {
+      total += toNumber(c.value);
+    }
   }
-  
+
   return total;
 }
 
@@ -1598,15 +1601,17 @@ function buildDashTable(vals){
 function showClientTooltip(repIdx, event){
   const tooltip = $('tooltip-'+repIdx);
   if(!tooltip) return;
-  
+
   const clients = CLIENTS[repIdx] || [];
-  
-  if(clients.length === 0){
-    tooltip.innerHTML = '<div style="padding:20px;color:#999;font-size:9px;text-align:center;height:400px;display:flex;align-items:center;justify-content:center;">Nenhum cliente cadastrado</div>';
+  // FILTRA apenas clientes SELECIONADOS
+  const selectedClients = clients.filter(c => c.selected === true);
+
+  if(selectedClients.length === 0){
+    tooltip.innerHTML = '<div style="padding:20px;color:#999;font-size:9px;text-align:center;height:400px;display:flex;align-items:center;justify-content:center;">Nenhum cliente selecionado</div>';
   } else {
     let html = '<div style="border-bottom:2px solid #ddd;padding:12px;margin-bottom:12px;font-weight:900;color:var(--orange);font-size:11px;background:#fff;">Clientes do Cenário Comercial:</div>';
     let total = 0;
-    clients.forEach(c => {
+    selectedClients.forEach(c => {
       let value = toNumber(c.value);
       total += value;
       html += `<div style="padding:12px;display:flex;align-items:center;gap:6px;justify-content:space-between;border-bottom:1px solid #f0f0f0;background:#fafafa;">
@@ -1621,7 +1626,7 @@ function showClientTooltip(repIdx, event){
     html += '<div style="height:80px;background:#fff;"></div>';
     tooltip.innerHTML = html;
   }
-  
+
   tooltip.style.display = 'block';
 }
 
