@@ -2888,22 +2888,45 @@ function clearInativImport(){
 }
 
 // ══════════ COMPARTILHAR VIA LINK ══════════
-// Tenta subir os dados para a nuvem (link curto). Se falhar, embute no link (longo).
+// Enxuga os dados do compartilhamento (mantém só as maiores famílias por filial)
+function minifyForShare(payload){
+  const p = JSON.parse(JSON.stringify(payload));
+  if(p.inativByRep){
+    Object.keys(p.inativByRep).forEach(rep => {
+      (p.inativByRep[rep].grupos||[]).forEach(g => {
+        (g.filiais||[]).forEach(f => {
+          if(f.familias && f.familias.length > 8){
+            f.familias = f.familias
+              .sort((a,b)=>(b.vals[0]+b.vals[1]+b.vals[2])-(a.vals[0]+a.vals[1]+a.vals[2]))
+              .slice(0,8);
+          }
+        });
+      });
+    });
+  }
+  return p;
+}
+
+// Tenta subir para a nuvem (link curto). Se falhar, embute no link (longo).
 async function empacotarLink(payload, repLabel){
-  // 1) tenta link CURTO via nuvem (jsonblob, grátis, sem conta)
   const base = location.origin + location.pathname;
+  payload = minifyForShare(payload);
+  // guarda comprimido na nuvem p/ ocupar pouco
+  const blob = { c: LZString.compressToBase64(JSON.stringify(payload)) };
+
+  // 1) tenta link CURTO via nuvem (jsonblob, grátis, sem conta)
   try{
     const resp = await fetch(JSONBLOB_API, {
       method: 'POST',
       headers: {'Content-Type':'application/json','Accept':'application/json'},
-      body: JSON.stringify(payload)
+      body: JSON.stringify(blob)
     });
     if(resp.ok){
-      const loc = resp.headers.get('Location') || '';
-      const id = loc.split('/').pop();
+      let id = (resp.headers.get('Location')||'').split('/').pop();
       if(id){ mostrarLinkModal(base + '#b=' + id, repLabel, true); return; }
     }
-  }catch(e){ /* sem internet ou serviço fora → usa reserva */ }
+  }catch(e){ /* sem internet / CORS / serviço fora → usa reserva */ }
+
   // 2) reserva: link longo com dados embutidos
   try{
     const comp = LZString.compressToEncodedURIComponent(JSON.stringify(payload));
@@ -3023,10 +3046,19 @@ async function carregarLinkCompartilhado(){
     const h = location.hash || '';
     if(h.indexOf('#b=') === 0){
       const id = h.substring(3);
+      mostrarCarregandoLink(true);
       try{
         const resp = await fetch(JSONBLOB_API + '/' + id, {headers:{'Accept':'application/json'}});
-        if(resp.ok){ const payload = await resp.json(); return aplicarPayload(payload); }
+        if(resp.ok){
+          const obj = await resp.json();
+          let payload = obj;
+          if(obj && obj.c){ payload = JSON.parse(LZString.decompressFromBase64(obj.c)); } // formato comprimido
+          mostrarCarregandoLink(false);
+          return aplicarPayload(payload);
+        }
       }catch(e){}
+      mostrarCarregandoLink(false);
+      window.__shareLoadError = true;   // não conseguiu carregar da nuvem
       return false;
     }
     if(h.indexOf('#d=') === 0){
@@ -3037,6 +3069,20 @@ async function carregarLinkCompartilhado(){
     }
     return false;
   }catch(e){ return false; }
+}
+
+// Overlay simples de "carregando" enquanto busca os dados na nuvem
+function mostrarCarregandoLink(on){
+  let el = document.getElementById('__loading_overlay__');
+  if(on){
+    if(!el){
+      el = document.createElement('div');
+      el.id = '__loading_overlay__';
+      el.style.cssText = 'position:fixed;inset:0;background:rgba(28,28,28,.92);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:Arial,sans-serif;';
+      el.innerHTML = '<div style="font-size:40px;margin-bottom:12px;">📊</div><div style="font-size:16px;font-weight:800;">Carregando dados...</div><div style="font-size:12px;opacity:.7;margin-top:6px;">Riosulense · Análise de Grandes Contas</div>';
+      document.body.appendChild(el);
+    }
+  } else if(el){ el.remove(); }
 }
 
 // Aplica o modo somente-visualização (link compartilhado)
@@ -3302,6 +3348,11 @@ async function initDashboard() {
 
   // 4. Se veio de link compartilhado, entra em modo somente-visualização
   if(shared) aplicarModoVisualizacao();
+
+  // 5. Link da nuvem que não carregou → avisa
+  if(window.__shareLoadError){
+    setTimeout(()=>{ alert('⚠️ Não foi possível carregar os dados deste link.\nPode ser falta de internet ou o link expirou. Peça um link novo.'); }, 300);
+  }
 }
 
 // Iniciar quando DOM estiver pronto
