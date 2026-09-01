@@ -2274,7 +2274,8 @@ function inativRefMonthKey(){
 }
 
 // Resultado do Dashboard (Realizado / % Atingido / Carteira) de um mês específico,
-// lido dos dados salvos (soma de TODOS os representantes). null se não houver dados.
+// lido dos dados salvos. Soma APENAS os representantes marcados no filtro do topo
+// ("Filtrar por Representante"), para os valores acompanharem a seleção. null se não houver dados.
 function resultadoDoMes(monthKey){
   if(!monthKey) return null;
   try{
@@ -2283,8 +2284,15 @@ function resultadoDoMes(monthKey){
     const data = JSON.parse(raw);
     if(!data.monthly) return null;
     const num = s => parseFloat(String(s).replace(/\./g,'').replace(',','.')) || 0;
+    // Índices dos representantes selecionados no filtro (se o filtro existir).
+    const cbs = document.querySelectorAll('.rep-checkbox');
+    let idxs = null;
+    if(cbs.length){ idxs = Array.from(cbs).filter(cb => cb.checked).map(cb => parseInt(cb.dataset.idx)); }
     let tM=0,tR=0,tC=0;
-    data.monthly.forEach(d => { tM += num(d.meta); tR += num(d.real); tC += num(d.car); });
+    data.monthly.forEach((d,i) => {
+      if(idxs && idxs.indexOf(i) < 0) return;   // fora da seleção → ignora
+      tM += num(d.meta); tR += num(d.real); tC += num(d.car);
+    });
     return { real: R(tR), atp: P(tM>0 ? tR/tM : 0), car: R(tC) };
   }catch(e){ return null; }
 }
