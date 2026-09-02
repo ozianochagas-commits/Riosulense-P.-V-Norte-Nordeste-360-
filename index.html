@@ -1982,6 +1982,24 @@ function resetTrimestre(){
 
 
 
+// Trimestre vigente conforme a data de hoje (1..4). Jul-Set = 3, etc.
+function getVigenteTrimestre(){
+  const m = new Date().getMonth();     // 0=Jan ... 11=Dez
+  return Math.floor(m/3) + 1;
+}
+// Atualiza SÓ a interface do trimestre (botão ativo, títulos e cabeçalhos), sem salvar.
+function aplicarTrimestreUI(numTri){
+  document.querySelectorAll('.trim-btn').forEach(btn => btn.classList.remove('active'));
+  const b = $('trim-btn-'+numTri); if(b) b.classList.add('active');
+  const trim = TRIMESTRES[numTri]; if(!trim) return;
+  if($('t-title')) $('t-title').textContent = '📅 Acumulado Trimestral — ' + trim.title;
+  if($('t-months')) $('t-months').textContent = trim.months;
+  if($('t-edit-months')) $('t-edit-months').textContent = trim.editMonths;
+  if($('t-th-m1')) $('t-th-m1').textContent = '✏️ ' + trim.headers[0] + ' (R$)';
+  if($('t-th-m2')) $('t-th-m2').textContent = '✏️ ' + trim.headers[1] + ' (R$)';
+  if($('t-th-m3')) $('t-th-m3').textContent = '✏️ ' + trim.headers[2] + ' (R$)';
+}
+
 // ── SELECIONAR TRIMESTRE ────────────────────────────────────────
 function selectTrimestre(numTri){
   // Salva dados do trimestre atual
@@ -3601,6 +3619,9 @@ async function initDashboard() {
   loadClientsData();    // carrega dados salvos de clientes da previsão
   if(!shared) loadInativByRep();  // carrega análise de grandes contas por representante
   buildFilter();        // cria os checkboxes do dropdown
+  // Abre SEMPRE no trimestre vigente (a edição salva nesse trimestre)
+  if(!shared){ currentTrimestre = getVigenteTrimestre(); }
+  aplicarTrimestreUI(currentTrimestre);
   renderEditTable();    // cria inputs com valores BASE (saveData bloqueado: _ready=false)
   renderTrimTable();    // idem
   loadData();           // restaura os valores digitados do mês (se houver)
