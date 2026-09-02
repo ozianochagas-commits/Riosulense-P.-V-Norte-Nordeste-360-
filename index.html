@@ -169,6 +169,10 @@
 
   .page{display:none;padding:24px 32px;max-width:1440px;margin:0 auto;}
   .page.active{display:block;}
+  /* Aba Agenda: ocupa a tela toda (sem margens/limite), como o site aberto direto */
+  #page-agenda{padding:0 !important;max-width:none !important;margin:0 !important;}
+  #page-agenda .agenda-card{border-radius:0;box-shadow:none;}
+  #agenda-frame{height:calc(100vh - 132px) !important;min-height:560px;}
 
   /* KPI */
   .kpi-wrapper{display:grid;grid-template-columns:repeat(7,1fr);gap:14px;margin-bottom:24px;}
@@ -680,7 +684,7 @@
 
 <!-- ══════════ AGENDA DE VIAGENS (site externo em iframe) ══════════ -->
 <div class="page" id="page-agenda">
-  <div style="background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);overflow:hidden;">
+  <div class="agenda-card" style="background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);overflow:hidden;">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:var(--dark);color:#fff;flex-wrap:wrap;">
       <div style="font-size:13px;font-weight:900;">✈️ Agenda de Viagens</div>
       <a href="https://agenda-de-viagens.vercel.app/" target="_blank" rel="noopener" style="font-size:11px;font-weight:700;color:var(--orange2);text-decoration:none;background:rgba(254,80,0,.15);border:1px solid var(--orange2);border-radius:6px;padding:6px 12px;">Abrir em nova aba ↗</a>
