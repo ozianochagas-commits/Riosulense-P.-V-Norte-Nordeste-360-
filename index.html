@@ -2861,6 +2861,7 @@ function repOverrideForGroup(cliAgrup){
   const n = String(cliAgrup || '').toUpperCase();
   if(n.indexOf('BEZERRA & OLIVEIRA') >= 0) return 'ATIVA';                       // BEZERRA & OLIVEIRA → ATIVA
   if(n.indexOf('AUTO PECAS PADRE CICERO') >= 0) return 'ATIVA';                  // AUTO PEÇAS PADRE CÍCERO → ATIVA
+  if(n.indexOf('AUTOFORT NORDESTE') >= 0) return 'ATIVA';                        // AUTOFORT NORDESTE → ATIVA
   if(n.indexOf('AUTO NORTE DISTRIBUIDORA') >= 0) return 'IG REPRESENTACOES COMERCIAIS'; // AUTO NORTE → IG REPRESENTAÇÕES
   return null;
 }
