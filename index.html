@@ -2460,6 +2460,7 @@ function applyGroupOverrides(){
   Object.keys(INATIV_BY_REP).forEach(rep => {
     const keep = [];
     (INATIV_BY_REP[rep].grupos || []).forEach(g => {
+      if(grupoExcluido(g.nome)) return;   // retirado da análise (não entra em keep nem em moves)
       const target = repOverrideForGroup(g.nome);
       if(target){
         (g.filiais || []).forEach(f => { (moves[target] = moves[target] || []).push(Object.assign({__grp:g.nome}, f)); });
@@ -2857,6 +2858,12 @@ function groupByCliAgrup(filiais, months){
 // Alguns grupos precisam aparecer INTEIROS para um único representante
 // (mesmo que as filiais estejam cadastradas em reps diferentes na planilha),
 // porque o representante precisa acompanhar o grupo todo.
+// Grupos que NÃO devem aparecer na análise de nenhum representante (contas retiradas).
+function grupoExcluido(cliAgrup){
+  const n = String(cliAgrup || '').toUpperCase();
+  if(n.indexOf('BRASILEIRA DE DISTRIBUICAO AUTOMOTIVA') >= 0) return true; // retirado do RBR / da análise
+  return false;
+}
 function repOverrideForGroup(cliAgrup){
   const n = String(cliAgrup || '').toUpperCase();
   if(n.indexOf('BEZERRA & OLIVEIRA') >= 0) return 'ATIVA';                       // BEZERRA & OLIVEIRA → ATIVA
@@ -2870,6 +2877,7 @@ function repOverrideForGroup(cliAgrup){
 function autoSplitByRep(parsed){
   const porRepFiliais = {};
   parsed.filiais.forEach(f => {
+    if(grupoExcluido(f.cliAgrup)) return;   // grupo retirado da análise
     // Se o grupo tem ajuste manual, TODAS as filiais vão para o rep definido.
     const rep = repOverrideForGroup(f.cliAgrup) || f.rep || 'SEM REPRESENTANTE';
     (porRepFiliais[rep] = porRepFiliais[rep] || []).push(f);
