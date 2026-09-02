@@ -26,6 +26,12 @@
   .hdate strong{color:white;display:block;font-size:14px;font-weight:800;text-align:right;}
   .hdate span{color:rgba(255,255,255,.75);font-size:10px;}
 
+  .nav-bar{background:var(--dark);display:flex;align-items:center;gap:12px;padding:10px 32px;border-bottom:3px solid var(--orange);flex-wrap:wrap;}
+  .nav-label{color:#bbb;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;}
+  #nav-select{background:#2b2b2b;color:#fff;border:2px solid var(--orange);border-radius:8px;padding:9px 16px;font-size:13px;font-weight:800;cursor:pointer;min-width:260px;outline:none;}
+  #nav-select:hover{border-color:var(--orange2);}
+  #nav-select option{background:#fff;color:#222;font-weight:700;}
+  @media(max-width:600px){ .nav-bar{padding:8px 16px;} #nav-select{min-width:0;flex:1;} }
   .tabs{background:var(--dark);display:flex;padding:0 32px;border-bottom:3px solid var(--orange);align-items:center;}
   .tab{padding:11px 22px;color:#888;font-size:11px;font-weight:700;cursor:pointer;
     letter-spacing:.8px;text-transform:uppercase;border-bottom:3px solid transparent;
@@ -561,11 +567,24 @@
   </div>
 </header>
 
-<div class="tabs">
+<!-- Navegação por lista suspensa (mais limpa que a fileira de abas) -->
+<div class="nav-bar">
+  <span class="nav-label">📂 Seção:</span>
+  <select id="nav-select" onchange="navFromSelect(this.value)">
+    <option value="dashboard">📊 Dashboard</option>
+    <option value="previsoes">✏️ Editar Dados</option>
+    <option value="trimestre">📅 Trimestre</option>
+    <option value="inatividade">🔴 Clientes Inativos</option>
+    <option value="agenda">✈️ Agenda de Viagens</option>
+  </select>
+</div>
+<!-- Abas originais mantidas ocultas: o restante do sistema ainda as usa internamente -->
+<div class="tabs" id="tabs-row" style="display:none;">
   <div class="tab active" onclick="showTab(this,'dashboard')">📊 &nbsp;Dashboard</div>
   <div class="tab" onclick="showTab(this,'previsoes')">✏️ &nbsp;Editar Dados</div>
   <div class="tab" onclick="showTab(this,'trimestre')">📅 &nbsp;Trimestre</div>
   <div class="tab" onclick="showTab(this,'inatividade')">🔴 &nbsp;Clientes Inativos</div>
+  <div class="tab" onclick="showTab(this,'agenda')">✈️ &nbsp;Agenda de Viagens</div>
 </div>
 
 <style>
@@ -658,6 +677,23 @@
 
 <!-- PDF REP HEADER (visible only on print) -->
 <div id="pdf-rep-header" class="pdf-rep-header"></div>
+
+<!-- ══════════ AGENDA DE VIAGENS (site externo em iframe) ══════════ -->
+<div class="page" id="page-agenda">
+  <div style="background:white;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.06);overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;background:var(--dark);color:#fff;flex-wrap:wrap;">
+      <div style="font-size:13px;font-weight:900;">✈️ Agenda de Viagens</div>
+      <a href="https://agenda-de-viagens.vercel.app/" target="_blank" rel="noopener" style="font-size:11px;font-weight:700;color:var(--orange2);text-decoration:none;background:rgba(254,80,0,.15);border:1px solid var(--orange2);border-radius:6px;padding:6px 12px;">Abrir em nova aba ↗</a>
+    </div>
+    <iframe id="agenda-frame" src="about:blank" data-src="https://agenda-de-viagens.vercel.app/"
+      style="width:100%;height:78vh;border:0;display:block;background:#fff;"
+      loading="lazy" referrerpolicy="no-referrer"></iframe>
+    <div id="agenda-fallback" style="display:none;padding:20px;text-align:center;font-size:12px;color:#777;">
+      Não foi possível abrir a Agenda aqui dentro.
+      <a href="https://agenda-de-viagens.vercel.app/" target="_blank" rel="noopener" style="color:var(--orange);font-weight:700;">Clique aqui para abrir em nova aba</a>.
+    </div>
+  </div>
+</div>
 
 <!-- ══════════ DASHBOARD ══════════ -->
 <div class="page active" id="page-dashboard">
@@ -2026,6 +2062,27 @@ function showTab(el,id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   el.classList.add('active'); $('page-'+id).classList.add('active');
   currentTab = id;
+  // mantém a lista suspensa sincronizada com a seção atual
+  const nv = document.getElementById('nav-select'); if(nv && nv.value !== id) nv.value = id;
+  if(id === 'agenda') carregarAgenda();
+}
+
+// Navega a partir da lista suspensa (usa a aba oculta correspondente)
+function navFromSelect(id){
+  const t = Array.from(document.querySelectorAll('.tab')).find(t => (t.getAttribute('onclick')||'').indexOf("'"+id+"'") >= 0);
+  if(t) showTab(t, id);
+}
+
+// Carrega o site da Agenda de Viagens só quando a aba é aberta (não atrasa o início).
+function carregarAgenda(){
+  const f = document.getElementById('agenda-frame');
+  if(!f || f.dataset.loaded) return;
+  f.dataset.loaded = '1';
+  const fb = document.getElementById('agenda-fallback');
+  // se em ~6s o site não abrir (bloqueio de iframe), mostra o link para nova aba
+  const timer = setTimeout(()=>{ if(fb) fb.style.display='block'; }, 6000);
+  f.addEventListener('load', ()=>{ clearTimeout(timer); if(fb) fb.style.display='none'; });
+  f.src = f.dataset.src;
 }
 
 // ── FILTER ─────────────────────────────────────────────────────
@@ -3295,6 +3352,8 @@ function aplicarModoVisualizacao(){
       if(t.getAttribute('onclick') && t.getAttribute('onclick').indexOf('inatividade') < 0) t.style.display = 'none';
     });
     const toolbar = document.querySelector('.toolbar'); if(toolbar) toolbar.style.display='none';
+    // esconde a lista suspensa de seções (link individual mostra só Clientes Inativos)
+    const navbar = document.querySelector('.nav-bar'); if(navbar) navbar.style.display='none';
     // TRAVA o seletor de mês (quem recebe o link não pode alterar o mês).
     const selMes = document.getElementById('month-selector');
     if(selMes){ selMes.disabled = true; selMes.style.cursor='not-allowed'; selMes.style.opacity='.9'; selMes.setAttribute('onclick','return false;'); }
